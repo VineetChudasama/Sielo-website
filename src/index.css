@@ -424,7 +424,7 @@ button {
     box-sizing: border-box !important;
     position: relative !important;
     z-index: 2 !important;
-    gap: 40px;
+    gap: 60px;
   }
 
   .hero-player-stage {
