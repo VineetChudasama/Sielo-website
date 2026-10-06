@@ -1,0 +1,537 @@
+/* ==========================================================================
+   SIELO DESIGN SYSTEM — EDITORIAL & CINEMATIC 3D MUSIC EXPERIENCE
+   ========================================================================== */
+
+:root {
+  /* Sielo Established Palette */
+  --bg-deep: #070B12;
+  --bg-surface: #101824;
+  --bg-surface-elevated: #182334;
+  --color-slate: #415A77;
+  --color-teal: #778D7A;
+  --color-gold: #D4C4A8;
+  --color-ivory: #F4F1DE;
+
+  /* Alpha Accents */
+  --gold-glow: rgba(212, 196, 168, 0.15);
+  --gold-border: rgba(212, 196, 168, 0.18);
+  --slate-border: rgba(65, 90, 119, 0.35);
+  --glass-bg: rgba(27, 38, 59, 0.55);
+  --glass-bg-subtle: rgba(13, 27, 42, 0.75);
+  --glass-border: rgba(244, 241, 222, 0.08);
+
+  /* Typography */
+  --font-brand: 'Macondo', cursive;
+  --font-heading: 'Sora', sans-serif;
+  --font-body: 'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Shadows */
+  --shadow-card: 0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 25px rgba(212, 196, 168, 0.03);
+  --shadow-player: 0 35px 70px -20px rgba(0, 0, 0, 0.7), 0 0 40px rgba(212, 196, 168, 0.08);
+  --shadow-glow: 0 0 50px rgba(212, 196, 168, 0.12);
+
+  /* Layout */
+  --max-w-content: 1240px;
+}
+
+/* Base resets */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--bg-deep);
+  color: var(--color-ivory);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+body {
+  min-height: 100vh;
+  background-color: #06090F;
+  background-image:
+    /* High-atmospheric cosmic slate-blue dome (Hero & Header) */
+    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(27, 38, 59, 0.42) 0%, rgba(13, 27, 42, 0.15) 50%, transparent 75%),
+    /* Subtle warm champagne gold ambient bloom (upper-mid section / Features) */
+    radial-gradient(ellipse 60% 40% at 80% 22%, rgba(212, 196, 168, 0.045) 0%, transparent 65%),
+    /* Deep celestial slate nebula (Player Showcase) */
+    radial-gradient(ellipse 70% 45% at 20% 45%, rgba(30, 43, 66, 0.38) 0%, transparent 65%),
+    /* Warm gold ambient aura (Discography & Sessions) */
+    radial-gradient(ellipse 65% 40% at 75% 72%, rgba(212, 196, 168, 0.04) 0%, transparent 60%),
+    /* Warm specular gold aura rising from footer floor */
+    radial-gradient(ellipse 85% 35% at 50% 100%, rgba(212, 196, 168, 0.055) 0%, rgba(27, 38, 59, 0.2) 40%, transparent 75%),
+    /* Ultra-deep obsidian midnight linear gradient foundation */
+    linear-gradient(180deg, #06090F 0%, #080D16 25%, #060A11 50%, #080D17 75%, #04070B 100%);
+  background-attachment: fixed;
+  color: var(--color-ivory);
+  overflow-x: clip;
+  position: relative;
+}
+
+/* Ultra-sleek Native Scrollbar (De-emphasized for the 3D Gliding Reel) */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 196, 168, 0.15);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 196, 168, 0.35);
+}
+
+/* Typography styles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-ivory);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+p {
+  color: rgba(244, 241, 222, 0.78);
+  font-weight: 400;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+button {
+  font-family: var(--font-body);
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+}
+
+/* Film grain subtle overlay */
+.film-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Vignette overlay */
+.vignette-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(ellipse 80% 70% at 50% 50%, transparent 55%, rgba(4, 7, 11, 0.72) 100%);
+}
+
+/* Concentric radial rings for the hero sound-wave background */
+.radial-rings-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1400px;
+  height: 1400px;
+  pointer-events: none;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.concentric-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(65, 90, 119, 0.18);
+  box-shadow: 0 0 80px rgba(119, 141, 122, 0.03);
+  transition: all 0.5s ease;
+}
+
+.concentric-ring:nth-child(1) { width: 340px; height: 340px; border-color: rgba(212, 196, 168, 0.14); }
+.concentric-ring:nth-child(2) { width: 560px; height: 560px; border-color: rgba(119, 141, 122, 0.16); }
+.concentric-ring:nth-child(3) { width: 820px; height: 820px; border-color: rgba(65, 90, 119, 0.15); }
+.concentric-ring:nth-child(4) { width: 1120px; height: 1120px; border-color: rgba(65, 90, 119, 0.10); }
+.concentric-ring:nth-child(5) { width: 1460px; height: 1460px; border-color: rgba(65, 90, 119, 0.05); }
+.concentric-ring:nth-child(6) { width: 1820px; height: 1820px; border-color: rgba(65, 90, 119, 0.02); }
+
+/* Ambient core glow */
+.ambient-hero-glow {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(212, 196, 168, 0.05) 0%, rgba(65, 90, 119, 0.03) 35%, transparent 65%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(50px);
+}
+
+/* Rotating vinyl animation */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-vinyl {
+  animation: spin-slow 16s linear infinite;
+}
+
+.spin-vinyl-paused {
+  animation: spin-slow 16s linear infinite !important;
+  animation-play-state: paused !important;
+}
+
+/* Gentle idle floating animations */
+@keyframes idle-float-a {
+  0%, 100% {
+    transform: translateY(-4px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(4px) rotate(0.4deg);
+  }
+}
+
+@keyframes idle-float-b {
+  0%, 100% {
+    transform: translateY(4px) rotate(-0.3deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(0.2deg);
+  }
+}
+
+.float-idle-a {
+  animation: idle-float-a 6s ease-in-out infinite;
+}
+
+.float-idle-b {
+  animation: idle-float-b 7.5s ease-in-out infinite;
+}
+
+/* Glass Surface Styles */
+.glass-panel {
+  position: relative;
+  z-index: 30;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+}
+
+.glass-panel-subtle {
+  position: relative;
+  z-index: 30;
+  background: rgba(27, 38, 59, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(244, 241, 222, 0.05);
+}
+
+.glass-card-interactive {
+  position: relative;
+  z-index: 30;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card-interactive:hover {
+  border-color: rgba(212, 196, 168, 0.35);
+  box-shadow: 0 25px 50px -15px rgba(0, 0, 0, 0.7), 0 0 35px rgba(212, 196, 168, 0.12);
+}
+
+/* Primary and Secondary Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--color-ivory);
+  color: var(--bg-deep);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  padding: 14px 32px;
+  border-radius: 9999px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 20px rgba(244, 241, 222, 0.2);
+}
+
+.btn-primary:hover {
+  background: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(244, 241, 222, 0.35);
+  color: var(--bg-deep);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: transparent;
+  color: var(--color-ivory);
+  font-family: var(--font-heading);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  padding: 13px 30px;
+  border-radius: 9999px;
+  border: 1px solid rgba(244, 241, 222, 0.25);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-secondary:hover {
+  background: rgba(244, 241, 222, 0.08);
+  border-color: var(--color-gold);
+  color: #FFFFFF;
+  transform: translateY(-2px);
+}
+
+/* Pill Badges */
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 9999px;
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(212, 196, 168, 0.1);
+  border: 1px solid rgba(212, 196, 168, 0.22);
+  color: var(--color-gold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pill-badge-teal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 9999px;
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(119, 141, 122, 0.16);
+  border: 1px solid rgba(119, 141, 122, 0.38);
+  color: #B5CCB8;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Waveform Bars */
+.waveform-bar {
+  background: var(--color-gold);
+  border-radius: 2px;
+  transition: height 0.15s ease, background-color 0.2s ease;
+}
+
+/* Accessibility / Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spin-vinyl, .float-idle-a, .float-idle-b {
+    animation: none !important;
+  }
+}
+
+/* Editorial Footer Full-Screen Viewport Requirement */
+.sielo-editorial-footer {
+  min-height: calc(100vh - 55px) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  padding-top: 50px !important;
+  padding-bottom: 0px !important;
+}
+
+.sielo-footer-inner {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  flex-grow: 1 !important;
+  width: 100% !important;
+}
+
+@media (min-width: 769px) {
+  .sielo-stage-wrapper {
+    margin-top: auto !important;
+    margin-bottom: 0px !important;
+    padding-bottom: 0px !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: space-between !important;
+  }
+}
+
+/* ==========================================================================
+   SIELO HERO — MOBILE-ONLY RESPONSIVE BREAKPOINT (@media (max-width: 767px))
+   ========================================================================== */
+@media (max-width: 767px) {
+  #hero-wrapper.hero-mobile {
+    position: relative !important;
+    height: auto !important;
+    min-height: 100svh !important;
+    min-height: 100dvh !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justifyContent: center !important;
+  }
+
+  .hero-content {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-height: calc(100svh - 40px) !important;
+    padding: 100px 16px 36px 16px !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+    z-index: 2 !important;
+    gap: 40px;
+  }
+
+  .hero-player-stage {
+    position: relative !important;
+    width: min(74vw, 280px) !important;
+    margin: 0 auto !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .hero-player {
+    position: relative !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    z-index: 5 !important;
+  }
+
+  .hero-album-card {
+    position: absolute !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+    user-select: none !important;
+  }
+
+  .hero-album-card.mobile-card-top-left,
+  .hero-album-card.mobile-card-left {
+    left: -58px !important;
+    top: -46px !important;
+    transform: rotate(-10.5deg) scale(0.86) !important;
+    transform-origin: bottom right !important;
+    opacity: 0.88 !important;
+    filter: blur(0.2px) !important;
+  }
+
+  .hero-album-card.mobile-card-top-right,
+  .hero-album-card.mobile-card-right {
+    right: -54px !important;
+    top: -36px !important;
+    transform: rotate(8deg) scale(0.83) !important;
+    transform-origin: bottom left !important;
+    opacity: 0.88 !important;
+    filter: blur(0.2px) !important;
+  }
+
+  .hero-album-card.mobile-card-bottom-left {
+    left: -52px !important;
+    bottom: -24px !important;
+    transform: rotate(-4.5deg) scale(0.82) !important;
+    transform-origin: top right !important;
+    opacity: 0.9 !important;
+    filter: blur(0.2px) !important;
+  }
+
+  .hero-album-card.mobile-card-bottom-right {
+    right: -62px !important;
+    bottom: -20px !important;
+    transform: rotate(11.5deg) scale(0.87) !important;
+    transform-origin: top left !important;
+    opacity: 0.9 !important;
+    filter: blur(0.2px) !important;
+  }
+
+  .hero-download {
+    position: relative !important;
+    width: min(78vw, 290px) !important;
+    display: flex !important;
+    justify-content: center !important;
+    margin-top: 14px !important;
+    z-index: 6 !important;
+  }
+
+  #features {
+    padding-top: 50px !important;
+    padding-bottom: 60px !important;
+  }
+
+  .hero-pagination {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    margin-top: 16px !important;
+    z-index: 6 !important;
+  }
+
+  .pagination-dot {
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    background-color: rgba(65, 90, 119, 0.45) !important;
+    transition: all 0.25s ease !important;
+    display: inline-block !important;
+  }
+
+  .pagination-dot.active {
+    width: 8px !important;
+    height: 8px !important;
+    background-color: #F4F1DE !important;
+    box-shadow: 0 0 8px rgba(244, 241, 222, 0.6) !important;
+  }
+
+  /* Completely remove/hide decorative tape reel disc beside download button on mobile */
+  .download-disc,
+  .sielo-glide-reel-anchor {
+    display: none !important;
+  }
+}
+
+
