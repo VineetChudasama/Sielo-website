@@ -1,19 +1,44 @@
-# React + Vite
+# Sielo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Marketing site for **Sielo** — a music player for Android with dual-stream playback, synced lyrics, tactile player UI, and listen-together sessions.
 
-Currently, two official plugins are available:
+Built with React, Vite, and Framer Motion.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Getting started
 
-## React Compiler
+```bash
+npm install
+npm run dev
+```
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+Open the URL shown in the terminal (usually `http://localhost:5173`).
 
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
+## Scripts
 
-## Expanding the ESLint configuration
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the local development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Run ESLint |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Stack
+
+- [React](https://react.dev/) 19
+- [Vite](https://vite.dev/) 8
+- [Framer Motion](https://www.framer.com/motion/)
+- [Lucide React](https://lucide.dev/)
+
+## Project structure
+
+```
+src/
+  components/   # Page sections and UI
+  data/         # Music / feature content
+  App.jsx       # Main layout
+  main.jsx      # Entry point
+```
+
+## Download
+
+The site links to the Sielo Android APK (`Sielo_10.2.0.apk`) from the hero, navbar, and download CTA.
