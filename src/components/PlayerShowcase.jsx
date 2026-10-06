@@ -220,6 +220,7 @@ export default function PlayerShowcase() {
         >
           {/* Top Marquee Header */}
           <div
+            className="vinyl-engine-header"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -228,26 +229,31 @@ export default function PlayerShowcase() {
               paddingBottom: '16px',
               borderBottom: '1px solid rgba(244, 241, 222, 0.08)',
               flexWrap: 'wrap',
-              gap: '12px'
+              gap: '12px',
+              width: '100%',
+              minWidth: 0,
+              boxSizing: 'border-box'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
               <span
                 style={{
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
                   background: isPlaying ? '#778D7A' : 'rgba(212, 196, 168, 0.4)',
-                  boxShadow: isPlaying ? '0 0 10px #778D7A' : 'none'
+                  boxShadow: isPlaying ? '0 0 10px #778D7A' : 'none',
+                  flexShrink: 0
                 }}
               />
               <span
                 style={{
                   fontFamily: 'var(--font-heading)',
-                  fontSize: '0.82rem',
+                  fontSize: 'clamp(0.7rem, 2.4vw, 0.82rem)',
                   fontWeight: 600,
                   letterSpacing: '0.08em',
-                  color: 'var(--color-ivory)'
+                  color: 'var(--color-ivory)',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 TACTILE VINYL ENGINE
@@ -255,23 +261,38 @@ export default function PlayerShowcase() {
             </div>
 
             {/* Badges Group */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="pill-badge" style={{ fontSize: '0.72rem', padding: '4px 12px' }}>
+            <div
+              className="vinyl-engine-badges"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+                maxWidth: '100%',
+                minWidth: 0
+              }}
+            >
+              <span
+                className="pill-badge vinyl-engine-pill"
+                style={{ fontSize: 'clamp(0.58rem, 2vw, 0.72rem)', padding: '4px clamp(8px, 2vw, 12px)' }}
+              >
                 <Sparkles size={12} />
-                <span>320 KBPS CD-AAC</span>
+                <span className="vinyl-pill-full">320 KBPS CD-AAC</span>
+                <span className="vinyl-pill-short">320 KBPS</span>
               </span>
               <span
-                className="pill-badge"
+                className="pill-badge vinyl-engine-pill"
                 style={{
-                  fontSize: '0.72rem',
-                  padding: '4px 12px',
+                  fontSize: 'clamp(0.58rem, 2vw, 0.72rem)',
+                  padding: '4px clamp(8px, 2vw, 12px)',
                   background: 'rgba(119, 141, 122, 0.15)',
                   border: '1px solid rgba(119, 141, 122, 0.35)',
                   color: '#A3B8A6'
                 }}
               >
                 <Radio size={12} />
-                <span>MEDIA3 SERVICE</span>
+                <span className="vinyl-pill-full">MEDIA3 SERVICE</span>
+                <span className="vinyl-pill-short">MEDIA3</span>
               </span>
             </div>
           </div>
@@ -624,6 +645,10 @@ export default function PlayerShowcase() {
       </div>
 
       <style>{`
+        .vinyl-pill-short {
+          display: none;
+        }
+
         @media (min-width: 960px) {
           .player-main-col {
             grid-column: span 7 !important;
@@ -641,6 +666,19 @@ export default function PlayerShowcase() {
             padding: 20px 14px !important;
             gap: 20px !important;
             border-radius: 20px !important;
+          }
+          .vinyl-engine-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          .vinyl-engine-badges {
+            width: 100% !important;
+          }
+          .vinyl-pill-full {
+            display: none;
+          }
+          .vinyl-pill-short {
+            display: inline;
           }
           .player-main-vinyl {
             width: 175px !important;

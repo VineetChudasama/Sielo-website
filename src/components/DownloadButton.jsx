@@ -38,8 +38,8 @@ function AndroidIcon({ size = 28, color = '#0D1B2A' }) {
  * - Full reduced-motion support
  */
 export default function DownloadButton({
-  href = '/Sielo_10.2.0.apk',
-  download = 'Sielo_10.2.0.apk',
+  href = '/Sielo-11.0.0.apk',
+  download = 'Sielo-11.0.0.apk',
   variant = 'download-section',
   label = 'Download Sielo',
   subtitle = 'APK for Android',
@@ -413,7 +413,7 @@ export default function DownloadButton({
                   transition={{ duration: 0.22, ease: 'easeOut' }}
                   style={{
                     fontFamily: 'var(--font-heading)',
-                    fontSize: isHero ? '0.98rem' : '1.38rem',
+                    fontSize: isHero ? '0.88rem' : '1.05rem',
                     fontWeight: 700,
                     color: '#0D1B2A',
                     letterSpacing: '-0.025em',

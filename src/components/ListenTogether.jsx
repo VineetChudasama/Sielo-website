@@ -67,21 +67,27 @@ export default function ListenTogether() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: '40px'
+            marginBottom: '40px',
+            width: '100%',
+            minWidth: 0
           }}
         >
           <div
+            className="sync-status-pill"
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              gap: 'clamp(5px, 1.5vw, 10px)',
+              justifyContent: 'center',
+              gap: 'clamp(6px, 1.5vw, 10px)',
               padding: '6px clamp(10px, 2vw, 18px)',
               borderRadius: '9999px',
               background: 'rgba(13, 27, 42, 0.85)',
               border: '1px solid rgba(212, 196, 168, 0.25)',
               boxShadow: '0 8px 20px rgba(0,0,0,0.5)',
-              maxWidth: '100%',
-              boxSizing: 'border-box'
+              width: '100%',
+              maxWidth: '520px',
+              boxSizing: 'border-box',
+              minWidth: 0
             }}
           >
             <span
@@ -95,16 +101,22 @@ export default function ListenTogether() {
               }}
             />
             <span
+              className="sync-status-text"
               style={{
                 fontFamily: 'var(--font-heading)',
                 fontSize: 'clamp(0.56rem, 1.6vw, 0.76rem)',
                 fontWeight: 600,
                 color: 'var(--color-ivory)',
                 letterSpacing: '0.04em',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                minWidth: 0,
+                flex: '1 1 auto'
               }}
             >
-              LATENCY DRIFT: 42ms • CLOCK SYNCHRONIZED
+              <span className="sync-status-full">LATENCY DRIFT: 42ms • CLOCK SYNCHRONIZED</span>
+              <span className="sync-status-short">42ms DRIFT • SYNCED</span>
             </span>
             <span
               className="pill-badge-teal"
@@ -389,11 +401,25 @@ export default function ListenTogether() {
       </div>
 
       <style>{`
+        .sync-status-short {
+          display: none;
+        }
+
         @media (max-width: 860px) {
           .listen-together-cards-container {
             flex-direction: column !important;
             align-items: center !important;
             gap: 24px !important;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .sync-status-full {
+            display: none;
+          }
+
+          .sync-status-short {
+            display: inline;
           }
         }
       `}</style>

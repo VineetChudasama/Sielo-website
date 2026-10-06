@@ -41,4 +41,4 @@ src/
 
 ## Download
 
-The site links to the Sielo Android APK (`Sielo_10.2.0.apk`) from the hero, navbar, and download CTA.
+The site links to the Sielo Android APK (`Sielo-11.0.0.apk`) from the hero, navbar, and download CTA.
