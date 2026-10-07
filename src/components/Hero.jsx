@@ -120,10 +120,10 @@ export default function Hero() {
           <div className="hero-download" id="hero-download-btn-container">
             <DownloadButton
               variant="hero"
-              href="/Sielo-11.2.0.apk"
-              download="Sielo-11.2.0.apk"
+              href="/Sielo-11.3.1.apk"
+              download="Sielo-11.3.1.apk"
               label="Download Sielo"
-              subtitle="APK FOR ANDROID • V11.2.0"
+              subtitle="APK FOR ANDROID • V11.3.1"
             />
           </div>
         </div>
