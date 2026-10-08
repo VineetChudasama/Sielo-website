@@ -90,6 +90,20 @@ function App() {
         }
       }
 
+      // 4. /artist/:artistName or /artist?name=
+      const artistMatch = pathname.match(/^\/artist(?:\/([^/?#]+))?/i);
+      if (artistMatch) {
+        const name = searchParams.get('name') || (artistMatch[1] ? decodeURIComponent(artistMatch[1]) : '');
+        if (name) {
+          return {
+            type: 'artist',
+            id: name,
+            title: name,
+            artist: name
+          };
+        }
+      }
+
       return null;
     } catch {
       return null;

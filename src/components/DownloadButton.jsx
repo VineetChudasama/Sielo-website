@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useReducedMotion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, X } from 'lucide-react';
 
 /**
  * Official Android Robot vector icon
@@ -38,8 +38,8 @@ function AndroidIcon({ size = 28, color = '#0D1B2A' }) {
  * - Full reduced-motion support
  */
 export default function DownloadButton({
-  href = '/Sielo-11.3.2.apk',
-  download = 'Sielo-11.3.2.apk',
+  href = '/Sielo-11.4.0.apk',
+  download = 'Sielo-11.4.0.apk',
   variant = 'download-section',
   label = 'Download Sielo',
   subtitle = 'APK for Android',
@@ -51,7 +51,7 @@ export default function DownloadButton({
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [sweepTrigger, setSweepTrigger] = useState(0);
 
-  // Animation Phase: 'idle' | 'gliding' | 'success' | 'returning'
+  // Animation Phase: 'idle' | 'gliding' | 'success' | 'failed' | 'returning'
   const [animationPhase, setAnimationPhase] = useState('idle');
   const isHero = variant === 'hero';
   const [glideDistance, setGlideDistance] = useState(isHero ? 238 : 316);
@@ -131,7 +131,8 @@ export default function DownloadButton({
     rawParallaxX.set(0);
   };
 
-  const handleClick = (e) => {
+  const handleClick = async (e) => {
+    e.preventDefault();
     // If an animation cycle is already running, prevent overlapping clicks
     if (animationPhase !== 'idle') {
       return;
@@ -142,40 +143,59 @@ export default function DownloadButton({
     timersRef.current = [];
 
     setIsPressed(true);
-    const t0 = setTimeout(() => {
-      setIsPressed(false);
-    }, 120);
+    const t0 = setTimeout(() => setIsPressed(false), 120);
+    timersRef.current.push(t0);
 
-    // Phase 1: Arrow glides smoothly across the button
+    // Phase 1: Arrow glides smoothly across the button while fetching
     setAnimationPhase('gliding');
 
-    // Phase 2: Arrives at the right end after 650ms -> morphs into tick icon & displays "Done"
-    const t1 = setTimeout(() => {
+    try {
+      const response = await fetch(href);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+
+      // Create a temporary object URL and trigger native download
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = download;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      // Revoke after a short delay to allow the browser to pick up the download
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+
+      // Phase 2: Show success tick
       setAnimationPhase('success');
-    }, 650);
 
-    // Phase 3: Hold "tick arrow and done" for 1.8 seconds, then glide back
-    const t2 = setTimeout(() => {
-      setAnimationPhase('returning');
-    }, 2450); // 650ms + 1800ms
+      // Phase 3: Hold "tick + Done" for 2 seconds, then glide back
+      const t1 = setTimeout(() => setAnimationPhase('returning'), 2450);
+      // Phase 4: Return glide completes -> back to idle
+      const t2 = setTimeout(() => setAnimationPhase('idle'), 3100);
+      timersRef.current.push(t1, t2);
 
-    // Phase 4: Return glide completes after 650ms -> back to resting idle state
-    const t3 = setTimeout(() => {
-      setAnimationPhase('idle');
-    }, 3100); // 2450ms + 650ms
-
-    timersRef.current.push(t0, t1, t2, t3);
+    } catch (err) {
+      // Show error state
+      setAnimationPhase('failed');
+      const tErr = setTimeout(() => setAnimationPhase('idle'), 3500);
+      timersRef.current.push(tErr);
+    }
   };
 
   const isGlidingForward = animationPhase === 'gliding';
   const isSuccess = animationPhase === 'success';
+  const isFailed = animationPhase === 'failed';
   const isAtRight = isGlidingForward || isSuccess;
 
   return (
     <div
       style={{
         perspective: '900px',
-        display: 'inline-block',
+        display: 'inline-flex',
+        justifyContent: 'center',
+        width: '100%',
+        maxWidth: isHero ? '340px' : '420px',
+        boxSizing: 'border-box',
         ...style
       }}
       className={`sielo-download-button-wrapper ${className}`}
@@ -248,6 +268,7 @@ export default function DownloadButton({
             justifyContent: 'space-between',
             width: '100%',
             height: '100%',
+            boxSizing: 'border-box',
             borderRadius: '999px',
             background: 'linear-gradient(135deg, #FDFCF7 0%, #D4C4A8 100%)',
             border: isHovered
@@ -313,14 +334,15 @@ export default function DownloadButton({
             />
           )}
 
-          {/* Left Element: Action Circle with Arrow / Tick Glide */}
+          {/* Left Element: Action Circle with Arrow / Tick / X Glide */}
           <motion.div
             ref={circleRef}
+            className="sielo-circle-button"
             style={{
               width: isHero ? '44px' : '62px',
               height: isHero ? '44px' : '62px',
               borderRadius: '50%',
-              background: isSuccess ? '#1B4D2B' : '#0D1B2A',
+              background: isSuccess ? '#1B4D2B' : isFailed ? '#8B1A1A' : '#0D1B2A',
               color: '#F4F1DE',
               display: 'flex',
               alignItems: 'center',
@@ -331,6 +353,8 @@ export default function DownloadButton({
                 ? '0 12px 28px rgba(13, 27, 42, 0.55), 0 0 18px rgba(212, 196, 168, 0.45)'
                 : isSuccess
                 ? '0 8px 24px rgba(27, 77, 43, 0.55), 0 0 16px rgba(46, 111, 64, 0.4)'
+                : isFailed
+                ? '0 8px 24px rgba(139, 26, 26, 0.55), 0 0 16px rgba(200, 50, 50, 0.4)'
                 : isHovered
                 ? '0 8px 22px rgba(13, 27, 42, 0.45)'
                 : '0 4px 14px rgba(13, 27, 42, 0.28)',
@@ -359,6 +383,17 @@ export default function DownloadButton({
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Check size={isHero ? 20 : 26} strokeWidth={2.8} />
+                </motion.div>
+              ) : isFailed ? (
+                <motion.div
+                  key="x-icon"
+                  initial={{ scale: 0.3, rotate: 20, opacity: 0 }}
+                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                  exit={{ scale: 0.3, rotate: -20, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={isHero ? 20 : 26} strokeWidth={2.8} />
                 </motion.div>
               ) : (
                 <motion.div
@@ -406,7 +441,7 @@ export default function DownloadButton({
             <div style={{ position: 'relative', overflow: 'hidden' }}>
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={isSuccess ? 'done' : 'label'}
+                  key={isSuccess ? 'done' : isFailed ? 'failed' : 'label'}
                   initial={{ y: 8, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: -8, opacity: 0 }}
@@ -415,7 +450,7 @@ export default function DownloadButton({
                     fontFamily: 'var(--font-heading)',
                     fontSize: isHero ? '0.88rem' : '1.05rem',
                     fontWeight: 700,
-                    color: '#0D1B2A',
+                    color: isFailed ? '#8B1A1A' : '#0D1B2A',
                     letterSpacing: '-0.025em',
                     lineHeight: 1.15,
                     whiteSpace: 'nowrap',
@@ -423,7 +458,7 @@ export default function DownloadButton({
                     textOverflow: 'ellipsis'
                   }}
                 >
-                  {isSuccess ? 'Done' : label}
+                  {isSuccess ? 'Done' : isFailed ? 'Download Failed' : label}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -435,7 +470,7 @@ export default function DownloadButton({
                 fontWeight: 600,
                 letterSpacing: isHero ? '0.07em' : '0.08em',
                 textTransform: 'uppercase',
-                color: isSuccess ? '#2E6F40' : '#415A77',
+                color: isSuccess ? '#2E6F40' : isFailed ? '#C43B3B' : '#415A77',
                 marginTop: isHero ? '2px' : '3px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -443,12 +478,13 @@ export default function DownloadButton({
                 transition: 'color 0.25s ease'
               }}
             >
-              {isSuccess ? '✓ APK SAVED TO DEVICE' : subtitle}
+              {isSuccess ? '✓ APK SAVED TO DEVICE' : isFailed ? 'CHECK CONNECTION OR TRY AGAIN' : subtitle}
             </div>
           </div>
 
           {/* Right Element: Android Icon Capsule */}
           <motion.div
+            className="sielo-android-capsule"
             style={{
               x: prefersReducedMotion ? 0 : parallaxX,
               display: 'flex',
@@ -476,6 +512,11 @@ export default function DownloadButton({
       </motion.a>
 
       <style>{`
+        .sielo-download-button-wrapper {
+          box-sizing: border-box;
+          max-width: 100%;
+        }
+
         .sielo-download-pill {
           position: relative;
           display: inline-flex;
@@ -484,15 +525,19 @@ export default function DownloadButton({
           outline: none;
           cursor: pointer;
           -webkit-tap-highlight-color: transparent;
+          box-sizing: border-box;
+          max-width: 100%;
         }
 
         .sielo-download-pill.variant-download-section {
           width: 410px;
+          max-width: 100%;
           height: 96px;
         }
 
         .sielo-download-pill.variant-hero {
           width: 310px;
+          max-width: 100%;
           height: 64px;
         }
 
@@ -504,10 +549,12 @@ export default function DownloadButton({
         @media (max-width: 860px) and (min-width: 768px) {
           .sielo-download-pill.variant-download-section {
             width: 370px;
+            max-width: 100%;
             height: 88px;
           }
           .sielo-download-pill.variant-hero {
             width: 286px;
+            max-width: 100%;
             height: 62px;
           }
         }
@@ -516,32 +563,60 @@ export default function DownloadButton({
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
           text-rendering: geometricPrecision;
+          box-sizing: border-box;
         }
 
         @media (max-width: 767px) {
           .sielo-download-pill.variant-hero {
-            width: min(88vw, 340px) !important;
-            max-width: 340px !important;
-            height: 60px !important;
+            width: 100% !important;
+            max-width: 320px !important;
+            height: 58px !important;
+          }
+          .sielo-download-pill.variant-hero .sielo-pill-surface {
+            padding: 6px 12px !important;
           }
         }
 
         @media (max-width: 480px) {
           .sielo-download-pill.variant-download-section {
-            width: 100%;
-            max-width: 360px;
-            height: 84px;
+            width: 100% !important;
+            max-width: 340px !important;
+            height: 82px !important;
           }
           .sielo-download-pill.variant-hero {
-            width: min(88vw, 340px) !important;
-            max-width: 340px !important;
-            height: 60px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 56px !important;
+          }
+          .sielo-download-pill.variant-hero .sielo-pill-surface {
+            padding: 6px 10px !important;
+          }
+          .sielo-download-pill.variant-hero .sielo-circle-button {
+            width: 40px !important;
+            height: 40px !important;
+          }
+          .sielo-download-pill.variant-hero .sielo-android-capsule {
+            width: 38px !important;
+            height: 38px !important;
+            margin-left: 8px !important;
           }
         }
 
         @media (max-width: 360px) {
+          .sielo-download-pill.variant-hero {
+            height: 52px !important;
+          }
           .sielo-download-pill.variant-hero .sielo-pill-surface {
-            padding: 8px 10px !important;
+            padding: 5px 8px !important;
+          }
+          .sielo-download-pill.variant-hero .sielo-circle-button {
+            width: 36px !important;
+            height: 36px !important;
+          }
+          .sielo-download-pill.variant-hero .sielo-android-capsule {
+            width: 34px !important;
+            height: 34px !important;
+            margin-left: 6px !important;
           }
         }
       `}</style>

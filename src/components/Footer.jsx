@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
       { label: 'Tactile Vinyl', href: '#experience' },
       { label: 'Smart Discography', href: '#albums' },
       { label: 'Vibe Radar', href: '#stats' },
-      { label: 'Download APK', href: '/Sielo-11.3.2.apk', download: 'Sielo-11.3.2.apk' },
+      { label: 'Download APK', href: '/Sielo-11.4.0.apk', download: 'Sielo-11.4.0.apk' },
     ]
   },
   {

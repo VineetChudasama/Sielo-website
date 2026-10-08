@@ -120,11 +120,11 @@ export default function DownloadCTA() {
           }}
         >
           <DownloadButton
-            href="/Sielo-11.3.2.apk"
-            download="Sielo-11.3.2.apk"
+            href="/Sielo-11.4.0.apk"
+            download="Sielo-11.4.0.apk"
             variant="download-section"
             label="Download Sielo"
-            subtitle="APK FOR ANDROID • V11.3.2"
+            subtitle="APK FOR ANDROID • V11.4.0"
           />
 
           <a
