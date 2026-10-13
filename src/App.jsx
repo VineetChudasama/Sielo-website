@@ -1,4 +1,5 @@
 import React from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import ErrorBoundary from './components/ErrorBoundary';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -125,6 +126,7 @@ function App() {
           artist={routeInfo.artist}
           onBack={handleBackToHome}
         />
+        <Analytics />
       </ErrorBoundary>
     );
   }
@@ -166,6 +168,7 @@ function App() {
       {/* Footer */}
       <Footer />
       </div>
+      <Analytics />
     </ErrorBoundary>
   );
 }
