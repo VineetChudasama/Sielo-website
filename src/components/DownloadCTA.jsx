@@ -100,12 +100,12 @@ export default function DownloadCTA() {
           style={{
             fontSize: '1.2rem',
             color: 'rgba(244, 241, 222, 0.75)',
-            maxWidth: '540px',
+            maxWidth: '560px',
             margin: '0 auto 36px auto'
           }}
         >
-          Ready to experience music without compromises? Download Sielo for Android
-          and elevate every listening session.
+          Ready to experience music without compromises? Download the official Sielo APK
+          for Android and elevate every listening session with lossless 320kbps audio.
         </p>
 
         {/* Primary CTA Buttons */}
