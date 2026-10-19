@@ -38,8 +38,8 @@ function AndroidIcon({ size = 28, color = '#0D1B2A' }) {
  * - Full reduced-motion support
  */
 export default function DownloadButton({
-  href = '/Sielo-11.5.2.apk',
-  download = 'Sielo-11.5.2.apk',
+  href = '/Sielo-11.5.4.apk',
+  download = 'Sielo-11.5.4.apk',
   variant = 'download-section',
   label = 'Download Sielo',
   subtitle = 'APK for Android',
