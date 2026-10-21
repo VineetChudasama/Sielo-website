@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, useMotionValue, useSpring, useReducedMotion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Check, X } from 'lucide-react';
+import { trackApkDownload } from '../utils/analyticsTracker';
 
 /**
  * Official Android Robot vector icon
@@ -162,6 +163,7 @@ export default function DownloadButton({
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
+      trackApkDownload('v11.5.5', download);
       // Revoke after a short delay to allow the browser to pick up the download
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
 

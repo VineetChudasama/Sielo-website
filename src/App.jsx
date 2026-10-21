@@ -11,13 +11,19 @@ import DownloadCTA from './components/DownloadCTA';
 import Footer from './components/Footer';
 import SieloGlideReel from './components/SieloGlideReel';
 import DeepLinkFallback from './components/DeepLinkFallback';
+import AdminPage from './components/admin/AdminPage';
+import { trackPageView } from './utils/analyticsTracker';
 
 function App() {
   const [routeInfo, setRouteInfo] = React.useState(() => parseCurrentRoute());
 
   React.useEffect(() => {
+    // Record page view event
+    trackPageView(window.location.pathname);
+
     const handlePopState = () => {
       setRouteInfo(parseCurrentRoute());
+      trackPageView(window.location.pathname);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -27,6 +33,13 @@ function App() {
     try {
       const pathname = window.location.pathname.replace(/\/+$/, '');
       const searchParams = new URLSearchParams(window.location.search);
+
+      // 0. /admin Route
+      if (pathname === '/admin' || pathname === '/admin/' || searchParams.get('page') === 'admin') {
+        return {
+          type: 'admin'
+        };
+      }
 
       // 1. /song/:songId or /track/:songId or query ?song= or ?track=
       const songMatch = pathname.match(/^\/(?:song|track)\/([^/?#]+)/i);
@@ -116,6 +129,14 @@ function App() {
   };
 
   if (routeInfo) {
+    if (routeInfo.type === 'admin') {
+      return (
+        <ErrorBoundary>
+          <AdminPage onBackToSite={handleBackToHome} />
+        </ErrorBoundary>
+      );
+    }
+
     return (
       <ErrorBoundary>
         <DeepLinkFallback
