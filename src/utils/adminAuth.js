@@ -12,11 +12,11 @@ const VAULT_STORAGE_KEY = '__sielo_admin_vault_secret';
 const SESSION_KEY = '__sielo_admin_session_token';
 const LOCKOUT_KEY = '__sielo_admin_lockout';
 
-// Default Master Credentials Hash (Pre-computed SHA-256 for: salt + 'SieloAdmin@2026' + salt)
+// Default Master Credentials Hash (Pre-computed SHA-256 for: salt + '_' + 'SieloAdmin@2026' + '_' + salt)
 const DEFAULT_VAULT = {
   username: 'admin',
   salt: 'sielo_salt_9f8b2a1c4e7d',
-  passwordHash: 'ab6b248c83af4fa2311342714cf2beae8a35a8a6e045de446e11cc1df0a53922',
+  passwordHash: 'ac1bc1824db3cbefaa97211dde404d185706072c3d6587c3799ce2f2466ce7e5',
   updatedAt: 1792600000000
 };
 
