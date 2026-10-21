@@ -88,23 +88,7 @@ export default function Hero() {
 
         {/* Focused Single Music-Player Composition */}
         <div className="hero-content">
-          <h1
-            style={{
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: 'var(--color-gold)',
-              textAlign: 'center',
-              margin: '0 auto -20px auto',
-              zIndex: 6,
-              fontFamily: 'var(--font-heading)',
-              maxWidth: '92%',
-              lineHeight: 1.4
-            }}
-          >
-            Sielo — Lossless Android Music Player &amp; APK Download
-          </h1>
+          
 
           {/* Stage containing Central Player and Left/Right Partial Album Cards */}
           <div className="hero-player-stage">
@@ -138,10 +122,10 @@ export default function Hero() {
           <div className="hero-download" id="hero-download-btn-container">
             <DownloadButton
               variant="hero"
-              href="/Sielo-11.5.4.apk"
-              download="Sielo-11.5.4.apk"
+              href="/Sielo-11.5.5.apk"
+              download="Sielo-11.5.5.apk"
               label="Download Sielo"
-              subtitle="APK FOR ANDROID • V11.5.4"
+              subtitle="APK FOR ANDROID • V11.5.5"
             />
           </div>
         </div>
@@ -217,26 +201,7 @@ export default function Hero() {
         />
 
         {/* Heading for SEO & Brand Identity */}
-        <h1
-          style={{
-            position: 'absolute',
-            top: '84px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            fontSize: 'clamp(0.82rem, 1.1vw, 0.98rem)',
-            fontWeight: 600,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            color: 'rgba(212, 196, 168, 0.72)',
-            textAlign: 'center',
-            zIndex: 4,
-            fontFamily: 'var(--font-heading)',
-            pointerEvents: 'none',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          Sielo — Lossless Android Music Player &amp; APK Download
-        </h1>
+        
 
         {/* 3D Music Cards & Central Sielo Player Floating Field */}
         <FloatingMusicField

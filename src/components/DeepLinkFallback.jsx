@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Music, Disc3, Radio, ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import DownloadButton from './DownloadButton';
@@ -55,6 +55,19 @@ export default function DeepLinkFallback({ type, id, title, artist, onBack }) {
   };
 
   const meta = getMeta();
+  const pathPart = meta.appUri.replace(/^sielo:\/\//, '');
+  const androidIntentUri = meta.appUri && meta.appUri !== '#'
+    ? `intent://${pathPart}#Intent;scheme=sielo;package=com.sielo.music;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
+    : meta.appUri;
+
+  useEffect(() => {
+    if (androidIntentUri && androidIntentUri !== '#') {
+      const timer = setTimeout(() => {
+        window.location.href = androidIntentUri;
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [androidIntentUri]);
 
   return (
     <div
@@ -114,7 +127,7 @@ export default function DeepLinkFallback({ type, id, title, artist, onBack }) {
         </div>
 
         {/* Title */}
-        <h1
+        <h2
           style={{
             fontFamily: 'var(--font-heading)',
             fontSize: 'clamp(1.5rem, 4vw, 2.2rem)',
@@ -126,7 +139,7 @@ export default function DeepLinkFallback({ type, id, title, artist, onBack }) {
           }}
         >
           {meta.heading}
-        </h1>
+        </h2>
 
         {/* Subheading */}
         <div
@@ -156,6 +169,31 @@ export default function DeepLinkFallback({ type, id, title, artist, onBack }) {
 
         {/* Action: Open in App / Download Sielo */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center', width: '100%', boxSizing: 'border-box' }}>
+          <a
+            href={androidIntentUri}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              width: '100%',
+              maxWidth: '320px',
+              padding: '14px 24px',
+              backgroundColor: '#D4AF37',
+              color: '#070B12',
+              fontWeight: 700,
+              fontSize: '0.98rem',
+              borderRadius: '16px',
+              textDecoration: 'none',
+              boxShadow: '0 8px 24px rgba(212, 175, 55, 0.35)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              boxSizing: 'border-box'
+            }}
+          >
+            <ExternalLink size={18} />
+            <span>Open in Sielo App</span>
+          </a>
+
           <DownloadButton
             variant="hero"
             label="Download Sielo"

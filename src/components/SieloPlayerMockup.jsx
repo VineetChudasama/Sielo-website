@@ -358,10 +358,10 @@ export default function SieloPlayerMockup({
         >
           <DownloadButton
             variant="hero"
-            href="/Sielo-11.5.4.apk"
-            download="Sielo-11.5.4.apk"
+            href="/Sielo-11.5.5.apk"
+            download="Sielo-11.5.5.apk"
             label="Download Sielo"
-            subtitle="APK FOR ANDROID • V11.5.4"
+            subtitle="APK FOR ANDROID • V11.5.5"
           />
         </div>
       </motion.div>

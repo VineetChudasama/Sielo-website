@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!.well-known|favicon|site.webmanifest|assets|.*\\.apk|.*\\.png|.*\\.svg|.*\\.ico|robots.txt|sitemap.xml).*)",
       "destination": "/index.html"
     }
   ],
@@ -16,6 +16,10 @@
         {
           "key": "Access-Control-Allow-Origin",
           "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "max-age=3600, public"
         }
       ]
     }

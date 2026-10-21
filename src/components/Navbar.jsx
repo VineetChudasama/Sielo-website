@@ -128,8 +128,8 @@ export default function Navbar() {
             </a>
 
             <a
-              href="/Sielo-11.5.4.apk"
-              download="Sielo-11.5.4.apk"
+              href="/Sielo-11.5.5.apk"
+              download="Sielo-11.5.5.apk"
               className="btn-primary"
               style={{
                 padding: '9px 20px',
@@ -230,13 +230,13 @@ export default function Navbar() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <a
-                href="/Sielo-11.5.4.apk"
-                download="Sielo-11.5.4.apk"
+                href="/Sielo-11.5.5.apk"
+                download="Sielo-11.5.5.apk"
                 className="btn-primary"
                 style={{ width: '100%', justifyContent: 'center' }}
               >
                 <Download size={16} />
-                <span>Download Sielo APK (v11.5.4)</span>
+                <span>Download Sielo APK (v11.5.5)</span>
               </a>
               <a
                 href="https://github.com/VineetChudasama/Sielo"
