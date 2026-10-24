@@ -25,7 +25,7 @@ import {
   Trash2,
   Info
 } from 'lucide-react';
-import { getStoredAnalytics, resetAnalyticsData } from '../../utils/analyticsTracker';
+import { getStoredAnalytics, resetAnalyticsData, fetchLiveAnalytics } from '../../utils/analyticsTracker';
 import { getAdminUser, adminLogout, changeAdminCredentials } from '../../utils/adminAuth';
 import { INITIAL_APP_USERS, fetchLiveAppUsers, saveLocalUser, deleteLocalUser, getStoredLocalUsers } from '../../data/appUsersData';
 
@@ -151,20 +151,52 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    setAnalytics(getStoredAnalytics());
     try {
-      const liveUsers = await fetchLiveAppUsers();
-      setAppUsers(liveUsers);
-    } catch {}
-    setTimeout(() => setIsRefreshing(false), 600);
+      const [liveUsers, liveStats] = await Promise.all([
+        fetchLiveAppUsers(),
+        fetchLiveAnalytics()
+      ]);
+      if (liveUsers && Array.isArray(liveUsers)) {
+        setAppUsers(liveUsers);
+      }
+      if (liveStats) {
+        setAnalytics(liveStats);
+      }
+    } catch (e) {
+      console.warn('Refresh error:', e);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
   };
 
   useEffect(() => {
+    let isMounted = true;
     setIsLoadingUsers(true);
-    fetchLiveAppUsers().then(users => {
-      if (users && Array.isArray(users)) setAppUsers(users);
-      setIsLoadingUsers(false);
-    }).catch(() => setIsLoadingUsers(false));
+
+    const refreshAll = async () => {
+      try {
+        const [liveUsers, liveStats] = await Promise.all([
+          fetchLiveAppUsers(),
+          fetchLiveAnalytics()
+        ]);
+        if (isMounted) {
+          if (liveUsers && Array.isArray(liveUsers)) setAppUsers(liveUsers);
+          if (liveStats) setAnalytics(liveStats);
+          setIsLoadingUsers(false);
+        }
+      } catch (_) {
+        if (isMounted) setIsLoadingUsers(false);
+      }
+    };
+
+    refreshAll();
+
+    // 30-second live tracking auto-update loop
+    const liveTrackingInterval = setInterval(refreshAll, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(liveTrackingInterval);
+    };
   }, []);
 
   const handlePasswordChange = async (e) => {
@@ -204,7 +236,10 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
     const providerStr = (u.provider || '').toLowerCase();
     if (userFilter === 'google') return providerStr.includes('google');
     if (userFilter === 'email') return providerStr.includes('email') || providerStr.includes('password');
-    if (userFilter === 'active') return (u.status || '').toLowerCase().includes('active');
+    if (userFilter === 'active') {
+      const lastActive = u.lastHeartbeat || u.lastSyncedAt || 0;
+      return (Date.now() - lastActive) < 90000;
+    }
     return true;
   });
 
@@ -289,6 +324,34 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
 
         {/* Header Right Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '10px',
+              background: 'rgba(144, 190, 109, 0.12)',
+              border: '1px solid rgba(144, 190, 109, 0.3)',
+              color: '#90BE6D',
+              fontSize: '0.75rem',
+              fontWeight: 700
+            }}
+            title="User directory and telemetry refresh every 30 seconds"
+          >
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                background: '#90BE6D',
+                boxShadow: '0 0 8px #90BE6D',
+                display: 'inline-block'
+              }}
+            />
+            <span>LIVE 30s</span>
+          </div>
+
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
@@ -307,7 +370,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
             }}
           >
             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-            <span>Refresh</span>
+            <span>{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
           </button>
 
           <button
@@ -472,11 +535,22 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               </div>
             </div>
             <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#F4F1DE', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>
-              {appUsers.filter(u => u.status?.includes('Active')).length}
+              {appUsers.filter(u => {
+                const last = u.lastHeartbeat || u.lastSyncedAt || 0;
+                return (Date.now() - last < 90000) && (u.isPlaying || u.status === 'Listening Now');
+              }).length}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '0.8rem', color: '#D4AF37' }}>
               <Radio size={14} />
-              <span>Sub-150ms Listen Together active</span>
+              <span>
+                {(() => {
+                  const activeCount = appUsers.filter(u => {
+                    const last = u.lastHeartbeat || u.lastSyncedAt || 0;
+                    return (Date.now() - last < 90000) && (u.isPlaying || u.status === 'Listening Now');
+                  }).length;
+                  return activeCount > 0 ? `${activeCount} actively streaming songs` : '0 listeners streaming right now';
+                })()}
+              </span>
             </div>
           </div>
         </section>
@@ -1017,6 +1091,22 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                       <div style={{ fontSize: '0.78rem', color: 'rgba(212, 196, 168, 0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {user.email}
                       </div>
+                      {(() => {
+                        const now = Date.now();
+                        const lastActive = user.lastHeartbeat || user.lastSyncedAt || 0;
+                        const isRecentlyActive = (now - lastActive) < 90000;
+                        if (isRecentlyActive && user.currentTrack) {
+                          return (
+                            <div style={{ marginTop: '5px', fontSize: '0.74rem', color: '#90BE6D', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Music size={12} className="animate-pulse" />
+                              <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                Streaming: {user.currentTrack} {user.currentArtist ? `• ${user.currentArtist}` : ''}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
 
@@ -1034,17 +1124,68 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                       {user.provider}
                     </span>
 
-                    <span
-                      style={{
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        background: user.status === 'Active Now' ? 'rgba(144, 190, 109, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                        color: user.status === 'Active Now' ? '#90BE6D' : 'rgba(244, 241, 222, 0.75)',
-                        fontWeight: 600
-                      }}
-                    >
-                      {user.status}
-                    </span>
+                    {(() => {
+                      const now = Date.now();
+                      const lastActive = user.lastHeartbeat || user.lastSyncedAt || 0;
+                      const isRecentlyActive = (now - lastActive) < 90000;
+                      const isListening = isRecentlyActive && (user.isPlaying || user.status === 'Listening Now');
+                      const isActiveInApp = isRecentlyActive && !isListening;
+
+                      if (isListening) {
+                        return (
+                          <span
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              background: 'rgba(230, 57, 70, 0.18)',
+                              color: '#FF6B6B',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              border: '1px solid rgba(230, 57, 70, 0.35)'
+                            }}
+                          >
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#FF6B6B', boxShadow: '0 0 6px #FF6B6B' }} />
+                            <span>Listening Now</span>
+                          </span>
+                        );
+                      }
+                      if (isActiveInApp) {
+                        return (
+                          <span
+                            style={{
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              background: 'rgba(144, 190, 109, 0.2)',
+                              color: '#90BE6D',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              border: '1px solid rgba(144, 190, 109, 0.35)'
+                            }}
+                          >
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#90BE6D', boxShadow: '0 0 6px #90BE6D' }} />
+                            <span>Active in App</span>
+                          </span>
+                        );
+                      }
+                      return (
+                        <span
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            color: 'rgba(244, 241, 222, 0.55)',
+                            fontWeight: 600
+                          }}
+                          title={lastActive ? `Last active ${formatTimeAgo(lastActive)}` : 'Offline'}
+                        >
+                          Offline
+                        </span>
+                      );
+                    })()}
 
                     <span
                       style={{
@@ -1054,6 +1195,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                         color: '#D4AF37',
                         fontWeight: 600
                       }}
+                      title="Real App Version Installed on User Device"
                     >
                       v{user.appVersion || '11.5.6'}
                     </span>
@@ -1228,7 +1370,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, color: '#F4F1DE' }}>
-                          {isDownload ? `APK Downloaded (${event.version || 'v11.5.5'})` : `Page Visited (${event.path || '/'})`}
+                          {isDownload ? `APK Downloaded (${event.version || 'v11.5.6'})` : `Page Visited (${event.path || '/'})`}
                         </div>
                         <div style={{ fontSize: '0.74rem', color: 'rgba(212, 196, 168, 0.6)' }}>
                           Device: {event.device || 'Android'}

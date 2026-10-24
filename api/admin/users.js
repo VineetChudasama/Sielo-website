@@ -30,11 +30,15 @@ export default async function handler(req, res) {
         avatar: user.avatar || null,
         provider: user.provider || 'Google',
         createdAt: user.createdAt || Date.now(),
-        lastSyncedAt: Date.now(),
+        lastSyncedAt: user.lastSyncedAt || Date.now(),
+        lastHeartbeat: user.lastHeartbeat || Date.now(),
         favoriteArtists: user.favoriteArtists || [],
         streamCount: typeof user.streamCount === 'number' ? user.streamCount : (parseInt(user.streamCount, 10) || 0),
         likedCount: typeof user.likedCount === 'number' ? user.likedCount : (parseInt(user.likedCount, 10) || 0),
-        status: user.status || 'Active Now',
+        status: user.status || (user.isPlaying ? 'Listening Now' : 'Active Now'),
+        isPlaying: Boolean(user.isPlaying),
+        currentTrack: user.currentTrack || '',
+        currentArtist: user.currentArtist || '',
         appVersion: user.appVersion || '11.5.6',
         device: user.device || 'Android'
       };
@@ -105,6 +109,15 @@ export default async function handler(req, res) {
               historyCount;
 
             const username = pf.username?.stringValue || docFields.username?.stringValue || '';
+            const isPlaying = Boolean(pf.isPlaying?.booleanValue || docFields.isPlaying?.booleanValue);
+            const currentTrack = pf.currentTrack?.stringValue || docFields.currentTrack?.stringValue || '';
+            const currentArtist = pf.currentArtist?.stringValue || docFields.currentArtist?.stringValue || '';
+            const lastHeartbeat = pf.lastHeartbeat?.integerValue ? Number(pf.lastHeartbeat.integerValue) : (docFields.lastHeartbeat?.integerValue ? Number(docFields.lastHeartbeat.integerValue) : 0);
+            const lastSyncedAt = pf.lastSyncedAt?.integerValue ? Number(pf.lastSyncedAt.integerValue) : (docFields.lastSyncedAt?.integerValue ? Number(docFields.lastSyncedAt.integerValue) : Date.now());
+            const now = Date.now();
+            const lastActiveTime = Math.max(lastHeartbeat, lastSyncedAt);
+            const isRecentlyActive = (now - lastActiveTime) < 90000;
+            const status = isRecentlyActive ? (isPlaying ? 'Listening Now' : 'Active Now') : 'Offline';
 
             const existingIdx = combinedUsers.findIndex(u => u.id === uid || (email !== 'N/A' && u.email === email));
             const userObj = {
@@ -115,11 +128,15 @@ export default async function handler(req, res) {
               avatar: pf.photoUrl?.stringValue || docFields.photoUrl?.stringValue || null,
               provider: pf.provider?.stringValue || pf.authProvider?.stringValue || docFields.provider?.stringValue || 'Google',
               createdAt: pf.createdAt?.integerValue ? Number(pf.createdAt.integerValue) : (docFields.createdAt?.integerValue ? Number(docFields.createdAt.integerValue) : Date.now()),
-              lastSyncedAt: pf.lastSyncedAt?.integerValue ? Number(pf.lastSyncedAt.integerValue) : (docFields.lastSyncedAt?.integerValue ? Number(docFields.lastSyncedAt.integerValue) : Date.now()),
+              lastSyncedAt: lastSyncedAt,
+              lastHeartbeat: lastHeartbeat,
               favoriteArtists: pf.favoriteArtists?.arrayValue?.values?.map(v => v.stringValue) || pf.topArtists?.arrayValue?.values?.map(v => v.stringValue) || [],
               streamCount: streamCount,
               likedCount: pf.likedCount?.integerValue ? Number(pf.likedCount.integerValue) : (docFields.likedCount?.integerValue ? Number(docFields.likedCount.integerValue) : 0),
-              status: 'Active Now',
+              status: status,
+              isPlaying: isPlaying,
+              currentTrack: currentTrack,
+              currentArtist: currentArtist,
               appVersion: pf.appVersion?.stringValue || docFields.appVersion?.stringValue || '11.5.6',
               device: pf.deviceModel?.stringValue || docFields.deviceModel?.stringValue || 'Android'
             };
