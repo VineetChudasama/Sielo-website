@@ -247,7 +247,10 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
     ? ((analytics.totalDownloads / analytics.totalVisitors) * 100).toFixed(1)
     : '0.0';
 
-  const maxVisitorsInDaily = Math.max(...(analytics.dailyHistory?.map(d => d.visitors) || [1]), 1);
+  const maxMetricInDaily = Math.max(
+    ...(analytics.dailyHistory?.flatMap(d => [Number(d.visitors || 0), Number(d.downloads || 0)]) || [1]),
+    1
+  );
 
   return (
     <div
@@ -648,8 +651,9 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                 }}
               >
                 {analytics.dailyHistory?.map((day, idx) => {
-                  const visitorHeight = day.visitors > 0 ? Math.max(Math.round((day.visitors / maxVisitorsInDaily) * 160), 12) : 2;
-                  const downloadHeight = day.downloads > 0 ? Math.max(Math.round((day.downloads / maxVisitorsInDaily) * 160), 6) : 2;
+                  const visitorHeight = day.visitors > 0 ? Math.max(Math.round((day.visitors / maxMetricInDaily) * 150), 10) : 3;
+                  const downloadHeight = day.downloads > 0 ? Math.max(Math.round((day.downloads / maxMetricInDaily) * 150), 10) : 3;
+                  const isToday = day.date === new Date().toISOString().split('T')[0];
                   return (
                     <div
                       key={day.date || idx}
@@ -660,8 +664,10 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                         gap: '6px'
                       }}
                     >
-                      <div style={{ fontSize: '0.72rem', color: 'rgba(212, 196, 168, 0.6)', fontWeight: 600 }}>
-                        {day.downloads}
+                      <div style={{ fontSize: '0.72rem', color: 'rgba(212, 196, 168, 0.75)', fontWeight: 700 }}>
+                        <span style={{ color: '#D4AF37' }}>{day.visitors}</span>
+                        <span style={{ color: 'rgba(212, 196, 168, 0.35)', margin: '0 2px' }}>/</span>
+                        <span style={{ color: '#778D7A' }}>{day.downloads}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center' }}>
                         {/* Visitors bar */}
@@ -673,7 +679,8 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                             height: `${visitorHeight}px`,
                             background: 'linear-gradient(to top, rgba(212, 175, 55, 0.5), #D4AF37)',
                             borderRadius: '4px 4px 0 0',
-                            transition: 'height 0.4s ease'
+                            transition: 'height 0.4s ease',
+                            boxShadow: day.visitors > 0 ? '0 0 8px rgba(212, 175, 55, 0.25)' : 'none'
                           }}
                         />
                         {/* Downloads bar */}
@@ -685,16 +692,18 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                             height: `${downloadHeight}px`,
                             background: 'linear-gradient(to top, rgba(119, 141, 122, 0.5), #778D7A)',
                             borderRadius: '4px 4px 0 0',
-                            transition: 'height 0.4s ease'
+                            transition: 'height 0.4s ease',
+                            boxShadow: day.downloads > 0 ? '0 0 8px rgba(119, 141, 122, 0.25)' : 'none'
                           }}
                         />
                       </div>
                       <span
                         style={{
                           fontSize: '0.68rem',
-                          color: 'rgba(244, 241, 222, 0.5)',
+                          color: isToday ? '#E5C365' : 'rgba(244, 241, 222, 0.5)',
                           marginTop: '6px',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          fontWeight: isToday ? 700 : 500
                         }}
                       >
                         {day.label.split(',')[0]}

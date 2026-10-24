@@ -2,22 +2,32 @@ import fs from 'fs';
 
 const TMP_FILE = '/tmp/sielo_analytics_v1.json';
 
-function generateCleanDailyHistory() {
-  const days = [];
+export function alignDailyHistory(existing = []) {
+  const targetDays = [];
   const now = new Date();
+  const existingMap = new Map();
+  if (Array.isArray(existing)) {
+    existing.forEach(item => {
+      if (item && item.date) {
+        existingMap.set(item.date, item);
+      }
+    });
+  }
+
   for (let i = 13; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     const dateStr = d.toISOString().split('T')[0];
     const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
-    days.push({
+    const prev = existingMap.get(dateStr);
+    targetDays.push({
       date: dateStr,
       label: dayLabel,
-      visitors: 0,
-      downloads: 0
+      visitors: prev ? (Number(prev.visitors) || 0) : 0,
+      downloads: prev ? (Number(prev.downloads) || 0) : 0
     });
   }
-  return days;
+  return targetDays;
 }
 
 let memoryAnalytics = {
@@ -27,7 +37,7 @@ let memoryAnalytics = {
   devices: { android: 0, windows: 0, ios: 0, mac: 0, linux: 0 },
   browsers: { chrome: 0, samsung: 0, firefox: 0, safari: 0, edge: 0 },
   referrers: { direct: 0, google: 0, github: 0, whatsapp: 0, instagram: 0 },
-  dailyHistory: generateCleanDailyHistory(),
+  dailyHistory: alignDailyHistory(),
   recentEvents: []
 };
 
@@ -42,7 +52,8 @@ try {
         ...parsed,
         devices: { ...memoryAnalytics.devices, ...(parsed.devices || {}) },
         browsers: { ...memoryAnalytics.browsers, ...(parsed.browsers || {}) },
-        referrers: { ...memoryAnalytics.referrers, ...(parsed.referrers || {}) }
+        referrers: { ...memoryAnalytics.referrers, ...(parsed.referrers || {}) },
+        dailyHistory: alignDailyHistory(parsed.dailyHistory)
       };
     }
   }
@@ -63,6 +74,9 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  // Ensure daily history always matches current 14 calendar days
+  memoryAnalytics.dailyHistory = alignDailyHistory(memoryAnalytics.dailyHistory);
+
   // GET: Return current live analytics state
   if (req.method === 'GET') {
     return res.status(200).json({
@@ -77,6 +91,7 @@ export default async function handler(req, res) {
       const event = req.body || {};
       const now = Date.now();
       const todayStr = new Date().toISOString().split('T')[0];
+      const today = memoryAnalytics.dailyHistory.find(d => d.date === todayStr);
 
       if (event.type === 'page_view') {
         const path = (event.path || '/').toLowerCase();
@@ -97,8 +112,9 @@ export default async function handler(req, res) {
               memoryAnalytics.referrers[ref] = (memoryAnalytics.referrers[ref] || 0) + 1;
             }
 
-            const today = memoryAnalytics.dailyHistory?.find(d => d.date === todayStr);
-            if (today) today.visitors = (today.visitors || 0) + 1;
+            if (today) {
+              today.visitors = (today.visitors || 0) + 1;
+            }
           }
 
           memoryAnalytics.recentEvents.unshift({
@@ -112,8 +128,9 @@ export default async function handler(req, res) {
         }
       } else if (event.type === 'apk_download') {
         memoryAnalytics.totalDownloads = (memoryAnalytics.totalDownloads || 0) + 1;
-        const today = memoryAnalytics.dailyHistory?.find(d => d.date === todayStr);
-        if (today) today.downloads = (today.downloads || 0) + 1;
+        if (today) {
+          today.downloads = (today.downloads || 0) + 1;
+        }
 
         memoryAnalytics.recentEvents.unshift({
           id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,

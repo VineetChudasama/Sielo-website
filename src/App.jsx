@@ -16,10 +16,12 @@ import { trackPageView } from './utils/analyticsTracker';
 
 function App() {
   const [routeInfo, setRouteInfo] = React.useState(() => parseCurrentRoute());
+  const hasTrackedInitial = React.useRef(false);
 
   React.useEffect(() => {
-    // Record page view event (skipping admin)
-    if (!window.location.pathname.startsWith('/admin')) {
+    // Record page view event once on initial mount (skipping admin)
+    if (!hasTrackedInitial.current && !window.location.pathname.startsWith('/admin')) {
+      hasTrackedInitial.current = true;
       trackPageView(window.location.pathname);
     }
 
