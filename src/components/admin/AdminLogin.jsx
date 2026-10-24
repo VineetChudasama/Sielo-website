@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, Lock, User, Eye, EyeOff, AlertTriangle, ArrowLeft } from 'lucide-react';
-import { loginAdmin, checkLockout } from '../../utils/adminAuth';
+import { ShieldCheck, Lock, User, Eye, EyeOff, AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react';
+import { loginAdmin, checkLockout, clearLockout, resetVaultToDefault } from '../../utils/adminAuth';
 
 export default function AdminLogin({ onLoginSuccess, onBackToSite }) {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [shakeKey, setShakeKey] = useState(0);
+  const [lockoutState, setLockoutState] = useState(() => checkLockout());
 
-  const lockout = checkLockout();
+  const handleResetLockout = () => {
+    resetVaultToDefault();
+    clearLockout();
+    setLockoutState({ isLocked: false, remainingMinutes: 0 });
+    setErrorMessage('');
+    setUsername('admin');
+    setPassword('SieloAdmin@2026');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -193,7 +201,7 @@ export default function AdminLogin({ onLoginSuccess, onBackToSite }) {
           )}
         </AnimatePresence>
 
-        {lockout.isLocked ? (
+        {lockoutState.isLocked ? (
           <div
             style={{
               padding: '24px 16px',
@@ -207,9 +215,29 @@ export default function AdminLogin({ onLoginSuccess, onBackToSite }) {
             <div style={{ color: '#F4F1DE', fontWeight: 600, marginBottom: '6px' }}>
               Portal Temporarily Locked
             </div>
-            <div style={{ fontSize: '0.84rem', color: 'rgba(244, 241, 222, 0.65)' }}>
-              Too many failed login attempts. Please retry in {lockout.remainingMinutes} minutes.
+            <div style={{ fontSize: '0.84rem', color: 'rgba(244, 241, 222, 0.65)', marginBottom: '16px' }}>
+              Too many failed login attempts. Please retry in {lockoutState.remainingMinutes} minutes or reset the security cache.
             </div>
+            <button
+              type="button"
+              onClick={handleResetLockout}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                background: 'rgba(212, 175, 55, 0.2)',
+                border: '1px solid rgba(212, 175, 55, 0.4)',
+                borderRadius: '10px',
+                color: '#F4F1DE',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <RefreshCw size={14} />
+              Reset Security Lockout & Master Hash
+            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -379,6 +407,27 @@ export default function AdminLogin({ onLoginSuccess, onBackToSite }) {
                 </>
               )}
             </motion.button>
+
+            <div style={{ textAlign: 'center', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={handleResetLockout}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'rgba(212, 196, 168, 0.45)',
+                  fontSize: '0.76rem',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <RefreshCw size={12} />
+                <span>Reset Local Security Cache / Unblock</span>
+              </button>
+            </div>
           </form>
         )}
       </motion.div>

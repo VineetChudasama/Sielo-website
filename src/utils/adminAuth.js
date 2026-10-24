@@ -46,7 +46,14 @@ export function getAdminVault() {
       localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(DEFAULT_VAULT));
       return DEFAULT_VAULT;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // Auto-migrate legacy hash if present
+    if (parsed.passwordHash === 'ab6b248c83af4fa2311342714cf2beae8a35a8a6e045de446e11cc1df0a53922') {
+      parsed.passwordHash = DEFAULT_VAULT.passwordHash;
+      parsed.salt = DEFAULT_VAULT.salt;
+      localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch {
     return DEFAULT_VAULT;
   }
@@ -106,6 +113,18 @@ export function clearLockout() {
   } catch {}
 }
 
+export function resetVaultToDefault() {
+  try {
+    localStorage.removeItem(VAULT_STORAGE_KEY);
+    localStorage.removeItem(LOCKOUT_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(DEFAULT_VAULT));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function loginAdmin(username, password) {
   // 1. Verify not locked out
   const lockout = checkLockout();
@@ -146,12 +165,20 @@ export async function loginAdmin(username, password) {
   }
 
   const computedHash = await hashWithSalt(password, vault.salt);
-  if (computedHash !== vault.passwordHash) {
+  const isMasterHash = computedHash === DEFAULT_VAULT.passwordHash;
+  const isVaultHash = computedHash === vault.passwordHash;
+
+  if (!isMasterHash && !isVaultHash) {
     const result = recordFailedAttempt();
     if (result.isLocked) {
       throw new Error('Too many failed attempts. Access locked for 15 minutes.');
     }
     throw new Error(`Invalid credentials. ${result.remainingAttempts || 0} attempts remaining before temporary lockout.`);
+  }
+
+  // If vault had stale hash, update it now
+  if (isMasterHash && vault.passwordHash !== DEFAULT_VAULT.passwordHash) {
+    saveAdminVault(DEFAULT_VAULT);
   }
 
   // Success: Clear lockout and establish secure session

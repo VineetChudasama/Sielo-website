@@ -18,12 +18,17 @@ function App() {
   const [routeInfo, setRouteInfo] = React.useState(() => parseCurrentRoute());
 
   React.useEffect(() => {
-    // Record page view event
-    trackPageView(window.location.pathname);
+    // Record page view event (skipping admin)
+    if (!window.location.pathname.startsWith('/admin')) {
+      trackPageView(window.location.pathname);
+    }
 
     const handlePopState = () => {
-      setRouteInfo(parseCurrentRoute());
-      trackPageView(window.location.pathname);
+      const newRoute = parseCurrentRoute();
+      setRouteInfo(newRoute);
+      if (newRoute?.type !== 'admin' && !window.location.pathname.startsWith('/admin')) {
+        trackPageView(window.location.pathname);
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);

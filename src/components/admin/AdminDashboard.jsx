@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
+  UserPlus,
   Download,
   Eye,
   Activity,
@@ -20,11 +21,61 @@ import {
   TrendingUp,
   Clock,
   Sparkles,
-  KeyRound
+  KeyRound,
+  Trash2,
+  Info
 } from 'lucide-react';
 import { getStoredAnalytics, resetAnalyticsData } from '../../utils/analyticsTracker';
 import { getAdminUser, adminLogout, changeAdminCredentials } from '../../utils/adminAuth';
-import { INITIAL_APP_USERS, fetchLiveAppUsers } from '../../data/appUsersData';
+import { INITIAL_APP_USERS, fetchLiveAppUsers, saveLocalUser, deleteLocalUser } from '../../data/appUsersData';
+
+function UserAvatar({ user, size = 52, borderRadius = '16px' }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const initial = (user.name || user.email || 'U').trim().charAt(0).toUpperCase();
+
+  if (user.avatar && !imgFailed) {
+    return (
+      <img
+        src={user.avatar}
+        alt={user.name || 'User'}
+        referrerPolicy="no-referrer"
+        crossOrigin="anonymous"
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius,
+          objectFit: 'cover',
+          border: '2px solid rgba(212, 175, 55, 0.35)',
+          flexShrink: 0
+        }}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius,
+        background: 'linear-gradient(135deg, rgba(229, 195, 101, 0.25) 0%, rgba(212, 175, 55, 0.1) 100%)',
+        border: '2px solid rgba(212, 175, 55, 0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#E5C365',
+        fontWeight: 700,
+        fontSize: `${Math.round(size * 0.42)}px`,
+        flexShrink: 0,
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)'
+      }}
+      title={user.name || user.email}
+    >
+      {initial}
+    </div>
+  );
+}
 
 export default function AdminDashboard({ onLogout, onBackToSite }) {
   const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'users' | 'events' | 'settings'
@@ -33,6 +84,60 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [userFilter, setUserFilter] = useState('all'); // 'all' | 'google' | 'email' | 'active'
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserAvatar, setNewUserAvatar] = useState('');
+  const [newUserStreams, setNewUserStreams] = useState('');
+  const [newUserLiked, setNewUserLiked] = useState('');
+  const [newUserProvider, setNewUserProvider] = useState('Google');
+  const [newUserArtists, setNewUserArtists] = useState('');
+
+  const handleDeleteUser = (userId, userEmail) => {
+    if (window.confirm(`Are you sure you want to remove the record for ${userEmail}?`)) {
+      const remaining = deleteLocalUser(userId || userEmail);
+      setAppUsers(remaining);
+    }
+  };
+
+  const handleManualAddUser = async (e) => {
+    e.preventDefault();
+    if (!newUserEmail.trim()) return;
+
+    const userObj = {
+      id: 'usr_' + Date.now(),
+      name: newUserName.trim() || newUserEmail.split('@')[0],
+      email: newUserEmail.trim().toLowerCase(),
+      avatar: newUserAvatar.trim() || null,
+      provider: newUserProvider,
+      createdAt: Date.now(),
+      lastSyncedAt: Date.now(),
+      favoriteArtists: newUserArtists ? newUserArtists.split(',').map(a => a.trim()).filter(Boolean) : ['The Weeknd'],
+      streamCount: parseInt(newUserStreams, 10) >= 0 ? parseInt(newUserStreams, 10) : 0,
+      likedCount: parseInt(newUserLiked, 10) >= 0 ? parseInt(newUserLiked, 10) : 0,
+      status: 'Active Now',
+      appVersion: '11.5.5',
+      device: 'Android'
+    };
+
+    saveLocalUser(userObj);
+    setAppUsers(prev => [userObj, ...prev.filter(u => u.email !== userObj.email)]);
+    setShowAddUserForm(false);
+    setNewUserName('');
+    setNewUserEmail('');
+    setNewUserAvatar('');
+    setNewUserStreams('');
+    setNewUserLiked('');
+    setNewUserArtists('');
+
+    try {
+      await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userObj)
+      });
+    } catch {}
+  };
 
   // Password change state
   const [currentPass, setCurrentPass] = useState('');
@@ -456,8 +561,8 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                 }}
               >
                 {analytics.dailyHistory?.map((day, idx) => {
-                  const visitorHeight = Math.max(Math.round((day.visitors / maxVisitorsInDaily) * 160), 12);
-                  const downloadHeight = Math.max(Math.round((day.downloads / maxVisitorsInDaily) * 160), 6);
+                  const visitorHeight = day.visitors > 0 ? Math.max(Math.round((day.visitors / maxVisitorsInDaily) * 160), 12) : 2;
+                  const downloadHeight = day.downloads > 0 ? Math.max(Math.round((day.downloads / maxVisitorsInDaily) * 160), 6) : 2;
                   return (
                     <div
                       key={day.date || idx}
@@ -530,7 +635,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {Object.entries(analytics.devices || {}).map(([dev, count]) => {
-                    const pct = Math.round((count / (analytics.totalVisitors || 1)) * 100);
+                    const pct = analytics.totalVisitors > 0 ? Math.round((count / analytics.totalVisitors) * 100) : 0;
                     return (
                       <div key={dev}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
@@ -561,7 +666,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {Object.entries(analytics.referrers || {}).map(([ref, count]) => {
-                    const pct = Math.round((count / (analytics.totalVisitors || 1)) * 100);
+                    const pct = analytics.totalVisitors > 0 ? Math.round((count / analytics.totalVisitors) * 100) : 0;
                     return (
                       <div key={ref}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
@@ -620,7 +725,26 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               </div>
 
               {/* Filter Pills */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  onClick={() => setShowAddUserForm(!showAddUserForm)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(212, 175, 55, 0.2)',
+                    border: '1px solid #D4AF37',
+                    borderRadius: '8px',
+                    padding: '6px 14px',
+                    color: '#D4AF37',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <UserPlus size={14} />
+                  <span>+ Add App Account</span>
+                </button>
                 {[
                   { id: 'all', label: `All Users (${appUsers.length})` },
                   { id: 'google', label: 'Google Auth' },
@@ -647,6 +771,173 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               </div>
             </div>
 
+            {showAddUserForm && (
+              <form
+                onSubmit={handleManualAddUser}
+                style={{
+                  background: 'rgba(13, 27, 42, 0.85)',
+                  border: '1px solid rgba(212, 175, 55, 0.4)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 600, color: '#F4F1DE', fontSize: '0.94rem' }}>
+                    Register Existing Sielo Account
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'rgba(212, 196, 168, 0.6)' }}>
+                    Add real account details from your phone
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                  <input
+                    type="text"
+                    placeholder="Account Name (e.g. Harsh Vardhan)"
+                    value={newUserName}
+                    onChange={e => setNewUserName(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <input
+                    type="email"
+                    required
+                    placeholder="Account Email (e.g. harsh@gmail.com)"
+                    value={newUserEmail}
+                    onChange={e => setNewUserEmail(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <select
+                    value={newUserProvider}
+                    onChange={e => setNewUserProvider(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="Google">Google Account</option>
+                    <option value="Email">Email / Password</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Top Artists (comma separated)"
+                    value={newUserArtists}
+                    onChange={e => setNewUserArtists(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <input
+                    type="url"
+                    placeholder="Avatar / PFP URL (optional Google photo link)"
+                    value={newUserAvatar}
+                    onChange={e => setNewUserAvatar(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Streams count (e.g. 15)"
+                    value={newUserStreams}
+                    onChange={e => setNewUserStreams(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Liked tracks count (e.g. 5)"
+                    value={newUserLiked}
+                    onChange={e => setNewUserLiked(e.target.value)}
+                    style={{
+                      background: 'rgba(7, 11, 18, 0.7)',
+                      border: '1px solid rgba(212, 196, 168, 0.25)',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      color: '#F4F1DE',
+                      fontSize: '0.84rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddUserForm(false)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(212, 196, 168, 0.3)',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      color: '#F4F1DE',
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      background: '#D4AF37',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 18px',
+                      color: '#070B12',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Save & Display Account
+                  </button>
+                </div>
+              </form>
+            )}
             {/* Users Grid */}
             <div
               style={{
@@ -671,27 +962,44 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                     overflow: 'hidden'
                   }}
                 >
+                  {/* Delete / Remove Action */}
+                  <button
+                    onClick={() => handleDeleteUser(user.id, user.email)}
+                    title="Remove user record"
+                    style={{
+                      position: 'absolute',
+                      top: '16px',
+                      right: '16px',
+                      background: 'rgba(230, 57, 70, 0.12)',
+                      border: '1px solid rgba(230, 57, 70, 0.3)',
+                      borderRadius: '8px',
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#FFB4B4',
+                      cursor: 'pointer',
+                      zIndex: 2,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+
                   {/* User Profile Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      style={{
-                        width: '52px',
-                        height: '52px',
-                        borderRadius: '16px',
-                        objectFit: 'cover',
-                        border: '2px solid rgba(212, 175, 55, 0.35)'
-                      }}
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&q=80';
-                      }}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', paddingRight: '28px' }}>
+                    <UserAvatar user={user} size={52} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#F4F1DE', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {user.name}
                         </h4>
+                        {user.username && (
+                          <span style={{ fontSize: '0.8rem', color: '#D4AF37', fontWeight: 600, background: 'rgba(212, 175, 55, 0.12)', padding: '1px 6px', borderRadius: '4px' }}>
+                            @{user.username.replace(/^@/, '')}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '0.78rem', color: 'rgba(212, 196, 168, 0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {user.email}
@@ -734,7 +1042,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                         fontWeight: 600
                       }}
                     >
-                      v{user.appVersion || '11.5.5'}
+                      v{user.appVersion || '11.5.6'}
                     </span>
                   </div>
 
@@ -750,11 +1058,11 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                       fontSize: '0.78rem'
                     }}
                   >
-                    <div>
+                    <div title="Streams: Total songs played / listened to in Sielo">
                       <span style={{ color: 'rgba(212, 196, 168, 0.6)' }}>Streams: </span>
                       <strong style={{ color: '#F4F1DE' }}>{user.streamCount || 0}</strong>
                     </div>
-                    <div>
+                    <div title="Liked: Total tracks saved to library">
                       <span style={{ color: 'rgba(212, 196, 168, 0.6)' }}>Liked: </span>
                       <strong style={{ color: '#F4F1DE' }}>{user.likedCount || 0}</strong>
                     </div>
@@ -789,7 +1097,53 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               ))}
             </div>
 
-            {filteredUsers.length === 0 && (
+            {appUsers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '80px 20px', background: 'rgba(13, 27, 42, 0.5)', borderRadius: '24px', border: '1px solid rgba(212, 196, 168, 0.15)' }}>
+                <Users size={48} color="#D4AF37" style={{ margin: '0 auto 16px', opacity: 0.8 }} />
+                <h3 style={{ color: '#F4F1DE', fontSize: '1.2rem', marginBottom: '8px' }}>No Registered App Users Yet</h3>
+                <p style={{ maxWidth: '480px', margin: '0 auto 20px', color: 'rgba(212, 196, 168, 0.65)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                  Real user accounts will automatically appear here when listeners sign in to the Sielo Android app via Google or Email.
+                </p>
+                <button
+                  onClick={handleRefresh}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 20px',
+                    background: 'rgba(212, 175, 55, 0.15)',
+                    border: '1px solid rgba(212, 175, 55, 0.4)',
+                    borderRadius: '12px',
+                    color: '#F4F1DE',
+                    fontSize: '0.84rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
+                  <span>Check For Synced App Users</span>
+                </button>
+                <button
+                  onClick={() => setShowAddUserForm(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 20px',
+                    background: 'rgba(212, 175, 55, 0.85)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    color: '#070B12',
+                    fontSize: '0.84rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <UserPlus size={14} />
+                  <span>+ Register App Account Now</span>
+                </button>
+              </div>
+            ) : filteredUsers.length === 0 && (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(212, 196, 168, 0.6)' }}>
                 No users found matching your search.
               </div>
@@ -819,6 +1173,15 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {(!analytics.recentEvents || analytics.recentEvents.length === 0) && (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(212, 196, 168, 0.55)' }}>
+                  <Activity size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                  <div style={{ fontWeight: 600, color: '#F4F1DE', marginBottom: '4px' }}>No Telemetry Events Logged Yet</div>
+                  <div style={{ fontSize: '0.82rem' }}>
+                    Live tracking is active. Real page views and APK downloads will stream here in real time.
+                  </div>
+                </div>
+              )}
               {analytics.recentEvents?.map(event => {
                 const isDownload = event.type === 'download';
                 const timeAgo = formatTimeAgo(event.time);
