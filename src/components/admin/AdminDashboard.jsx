@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { getStoredAnalytics, resetAnalyticsData } from '../../utils/analyticsTracker';
 import { getAdminUser, adminLogout, changeAdminCredentials } from '../../utils/adminAuth';
-import { INITIAL_APP_USERS, fetchLiveAppUsers, saveLocalUser, deleteLocalUser } from '../../data/appUsersData';
+import { INITIAL_APP_USERS, fetchLiveAppUsers, saveLocalUser, deleteLocalUser, getStoredLocalUsers } from '../../data/appUsersData';
 
 function UserAvatar({ user, size = 52, borderRadius = '16px' }) {
   const [imgFailed, setImgFailed] = useState(false);
@@ -80,7 +80,8 @@ function UserAvatar({ user, size = 52, borderRadius = '16px' }) {
 export default function AdminDashboard({ onLogout, onBackToSite }) {
   const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'users' | 'events' | 'settings'
   const [analytics, setAnalytics] = useState(() => getStoredAnalytics());
-  const [appUsers, setAppUsers] = useState(INITIAL_APP_USERS);
+  const [appUsers, setAppUsers] = useState(() => getStoredLocalUsers());
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [userFilter, setUserFilter] = useState('all'); // 'all' | 'google' | 'email' | 'active'
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -159,9 +160,11 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
   };
 
   useEffect(() => {
+    setIsLoadingUsers(true);
     fetchLiveAppUsers().then(users => {
-      if (users && users.length) setAppUsers(users);
-    });
+      if (users && Array.isArray(users)) setAppUsers(users);
+      setIsLoadingUsers(false);
+    }).catch(() => setIsLoadingUsers(false));
   }, []);
 
   const handlePasswordChange = async (e) => {
@@ -185,13 +188,23 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
 
   // Filter app users
   const filteredUsers = appUsers.filter(u => {
-    const matchesSearch = u.name.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
-                          u.email.toLowerCase().includes(searchUserQuery.toLowerCase()) ||
-                          u.favoriteArtists?.some(a => a.toLowerCase().includes(searchUserQuery.toLowerCase()));
+    if (!u) return false;
+    const nameStr = (u.name || '').toLowerCase();
+    const emailStr = (u.email || '').toLowerCase();
+    const userHandleStr = (u.username || '').toLowerCase();
+    const q = (searchUserQuery || '').toLowerCase().trim();
+
+    const matchesSearch = !q ||
+      nameStr.includes(q) ||
+      emailStr.includes(q) ||
+      userHandleStr.includes(q) ||
+      (Array.isArray(u.favoriteArtists) && u.favoriteArtists.some(a => (a || '').toLowerCase().includes(q)));
+
     if (!matchesSearch) return false;
-    if (userFilter === 'google') return u.provider?.toLowerCase() === 'google';
-    if (userFilter === 'email') return u.provider?.toLowerCase() === 'email';
-    if (userFilter === 'active') return u.status?.includes('Active');
+    const providerStr = (u.provider || '').toLowerCase();
+    if (userFilter === 'google') return providerStr.includes('google');
+    if (userFilter === 'email') return providerStr.includes('email') || providerStr.includes('password');
+    if (userFilter === 'active') return (u.status || '').toLowerCase().includes('active');
     return true;
   });
 
@@ -1060,11 +1073,11 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                   >
                     <div title="Streams: Total songs played / listened to in Sielo">
                       <span style={{ color: 'rgba(212, 196, 168, 0.6)' }}>Streams: </span>
-                      <strong style={{ color: '#F4F1DE' }}>{user.streamCount || 0}</strong>
+                      <strong style={{ color: '#F4F1DE' }}>{(typeof user.streamCount === 'number' ? user.streamCount : user.totalStreams) || 0}</strong>
                     </div>
                     <div title="Liked: Total tracks saved to library">
                       <span style={{ color: 'rgba(212, 196, 168, 0.6)' }}>Liked: </span>
-                      <strong style={{ color: '#F4F1DE' }}>{user.likedCount || 0}</strong>
+                      <strong style={{ color: '#F4F1DE' }}>{(typeof user.likedCount === 'number' ? user.likedCount : user.totalLiked) || 0}</strong>
                     </div>
                   </div>
 

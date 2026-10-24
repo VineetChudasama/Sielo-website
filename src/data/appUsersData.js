@@ -54,24 +54,26 @@ export function deleteLocalUser(userIdOrEmail) {
 export async function fetchLiveAppUsers() {
   const localList = getStoredLocalUsers();
 
-  // 1. Try serverless backend endpoint (/api/admin/users)
-  try {
-    const token = sessionStorage.getItem('__sielo_admin_session_token') || '';
-    const resp = await fetch('/api/admin/users', {
-      headers: {
-        'Authorization': `Bearer ${token}`
+  // 1. Try serverless backend endpoint (/api/admin/users or production fallback)
+  const endpoints = ['/api/admin/users', 'https://sielo.site/api/admin/users'];
+  for (const ep of endpoints) {
+    try {
+      const token = sessionStorage.getItem('__sielo_admin_session_token') || '';
+      const resp = await fetch(ep, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const usersList = Array.isArray(data) ? data : (Array.isArray(data?.users) ? data.users : []);
+        if (usersList.length > 0) {
+          // Merge with local storage
+          usersList.forEach(u => saveLocalUser(u));
+          return getStoredLocalUsers();
+        }
       }
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data && Array.isArray(data.users) && data.users.length > 0) {
-        // Merge with local storage
-        data.users.forEach(u => saveLocalUser(u));
-        return getStoredLocalUsers();
-      }
-    }
-  } catch (err) {
-    console.warn('API users fetch error:', err);
+    } catch (_) {}
   }
 
   // 2. Fallback: Query Firestore REST API directly if enabled
