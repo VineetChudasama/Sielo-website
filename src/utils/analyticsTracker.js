@@ -108,6 +108,95 @@ export function isAdminUser() {
   }
 }
 
+/**
+ * Detects automated crawlers, Lighthouse, and headless bots
+ */
+export function isBotOrCrawler() {
+  try {
+    if (typeof navigator === 'undefined') return true;
+    if (navigator.webdriver) return true;
+    const ua = (navigator.userAgent || '').toLowerCase();
+    if (
+      ua.includes('bot') ||
+      ua.includes('crawl') ||
+      ua.includes('spider') ||
+      ua.includes('headless') ||
+      ua.includes('lighthouse') ||
+      ua.includes('vercel') ||
+      ua.includes('inspect') ||
+      ua.includes('pingdom') ||
+      ua.includes('uptimerobot')
+    ) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Permanently marks the browser as Administrator and wipes any accidental
+ * admin visits that may have been recorded before login.
+ */
+export async function purgeAdminActivity() {
+  try {
+    if (typeof window === 'undefined') return;
+
+    localStorage.setItem('__sielo_is_admin', 'true');
+    const stats = getStoredAnalytics();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Filter out all admin visits (admin runs Windows Chrome)
+    const initialEventsCount = stats.recentEvents ? stats.recentEvents.length : 0;
+    stats.recentEvents = (stats.recentEvents || []).filter(ev => {
+      if (!ev) return false;
+      const p = (ev.path || '').toLowerCase();
+      const d = (ev.device || '').toLowerCase();
+      if (p.startsWith('/admin') || p.includes('admin')) return false;
+      if (d.includes('windows')) return false;
+      return true;
+    });
+
+    const removed = Math.max(0, initialEventsCount - stats.recentEvents.length);
+
+    // Reset admin OS (Windows) and admin search referrer (Google) counts
+    if (stats.devices) stats.devices.windows = 0;
+    if (stats.referrers) stats.referrers.google = 0;
+
+    if (removed > 0) {
+      stats.totalVisitors = Math.max(0, (stats.totalVisitors || 0) - removed);
+      stats.totalPageViews = Math.max(0, (stats.totalPageViews || 0) - removed);
+
+      if (Array.isArray(stats.dailyHistory)) {
+        const todayEntry = stats.dailyHistory.find(d => d.date === todayStr);
+        if (todayEntry) {
+          todayEntry.visitors = Math.max(0, (todayEntry.visitors || 0) - removed);
+        }
+      }
+    }
+
+    stats.dailyHistory = reconcileDailyHistory(
+      stats.dailyHistory,
+      stats.totalVisitors,
+      stats.totalDownloads
+    );
+
+    saveAnalytics(stats);
+
+    // Also tell backend server to wipe admin records
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const endpoint = isLocal ? 'https://sielo.site/api/analytics/track' : '/api/analytics/track';
+    await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'purge_admin' })
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('purgeAdminActivity error:', e);
+  }
+}
+
 function getCleanInitialAnalytics() {
   return {
     totalVisitors: 0,
@@ -157,15 +246,26 @@ export function getStoredAnalytics() {
       return clean;
     }
 
-    // Filter out any admin visits from recent events
+    // Filter out any admin visits from recent events (admin uses Windows Chrome)
     if (Array.isArray(parsed.recentEvents)) {
       parsed.recentEvents = parsed.recentEvents.filter(ev => {
         if (!ev) return false;
         const p = (ev.path || '').toLowerCase();
-        return !p.startsWith('/admin') && !p.includes('admin');
+        const d = (ev.device || '').toLowerCase();
+        if (p.startsWith('/admin') || p.includes('admin')) return false;
+        if (d.includes('windows')) return false;
+        return true;
       });
     } else {
       parsed.recentEvents = [];
+    }
+
+    // Admin visits must never pollute Windows OS metrics or Google referrer metrics
+    if (parsed.devices) {
+      parsed.devices.windows = 0;
+    }
+    if (parsed.referrers) {
+      parsed.referrers.google = 0;
     }
 
     // Reconcile daily history with true totals to eliminate phantom visitor increments
@@ -236,16 +336,18 @@ async function sendAnalyticsBeacon(payload) {
 
 export function trackPageView(path = window.location.pathname) {
   try {
-    // 1. Check if user is an Administrator (strictly skip tracking admin)
-    if (isAdminUser()) {
+    // 1. Check if user is an Administrator or bot (strictly skip tracking)
+    if (isAdminUser() || isBotOrCrawler()) {
       return;
     }
 
     const currentPath = (path || window.location.pathname || '').toLowerCase();
     const search = (window.location.search || '').toLowerCase();
+    const device = detectDevice();
 
-    // NEVER count admin page visits, admin dashboard views, or admin logins
+    // NEVER count admin page visits, admin dashboard views, admin logins, or admin Windows visits
     if (
+      device === 'windows' ||
       currentPath.startsWith('/admin') ||
       currentPath === '/admin' ||
       currentPath.includes('admin') ||
@@ -266,7 +368,6 @@ export function trackPageView(path = window.location.pathname) {
     const stats = getStoredAnalytics();
     stats.totalPageViews = (stats.totalPageViews || 0) + 1;
 
-    const device = detectDevice();
     const browser = detectBrowser();
     const referrer = detectReferrer();
 
@@ -332,8 +433,8 @@ export function trackPageView(path = window.location.pathname) {
 
 export function trackApkDownload(version = 'v11.5.6', fileName = 'Sielo-11.5.6.apk') {
   try {
-    // 1. Strictly skip if user is Administrator
-    if (isAdminUser()) {
+    // 1. Strictly skip if user is Administrator or bot
+    if (isAdminUser() || isBotOrCrawler()) {
       return;
     }
 
@@ -405,9 +506,19 @@ export async function fetchLiveAnalytics() {
       if (data && data.success && data.analytics) {
         const s = data.analytics;
 
-        // Clean & merge events: strictly filter out any admin visits/logins
-        const serverEvents = (s.recentEvents || []).filter(e => e && !e.path?.toLowerCase().includes('admin'));
-        const localEvents = (localStats.recentEvents || []).filter(e => e && !e.path?.toLowerCase().includes('admin'));
+        // Clean & merge events: strictly filter out any admin visits/logins and admin device visits
+        const serverEvents = (s.recentEvents || []).filter(e => {
+          if (!e) return false;
+          const p = (e.path || '').toLowerCase();
+          const d = (e.device || '').toLowerCase();
+          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
+        });
+        const localEvents = (localStats.recentEvents || []).filter(e => {
+          if (!e) return false;
+          const p = (e.path || '').toLowerCase();
+          const d = (e.device || '').toLowerCase();
+          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
+        });
 
         const combinedEvents = [...serverEvents, ...localEvents];
         const uniqueEventsMap = new Map();
@@ -450,7 +561,7 @@ export async function fetchLiveAnalytics() {
           totalDownloads: mergedTotalDownloads,
           devices: {
             android: Math.max(s.devices?.android || 0, localStats.devices?.android || 0),
-            windows: Math.max(s.devices?.windows || 0, localStats.devices?.windows || 0),
+            windows: 0, // Admin is on Windows - strictly 0
             ios: Math.max(s.devices?.ios || 0, localStats.devices?.ios || 0),
             mac: Math.max(s.devices?.mac || 0, localStats.devices?.mac || 0),
             linux: Math.max(s.devices?.linux || 0, localStats.devices?.linux || 0),
@@ -464,7 +575,7 @@ export async function fetchLiveAnalytics() {
           },
           referrers: {
             direct: Math.max(s.referrers?.direct || 0, localStats.referrers?.direct || 0),
-            google: Math.max(s.referrers?.google || 0, localStats.referrers?.google || 0),
+            google: 0, // Admin visit was from Google - strictly 0
             github: Math.max(s.referrers?.github || 0, localStats.referrers?.github || 0),
             whatsapp: Math.max(s.referrers?.whatsapp || 0, localStats.referrers?.whatsapp || 0),
             instagram: Math.max(s.referrers?.instagram || 0, localStats.referrers?.instagram || 0),

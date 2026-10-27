@@ -25,7 +25,7 @@ import {
   Trash2,
   Info
 } from 'lucide-react';
-import { getStoredAnalytics, resetAnalyticsData, fetchLiveAnalytics } from '../../utils/analyticsTracker';
+import { getStoredAnalytics, resetAnalyticsData, fetchLiveAnalytics, purgeAdminActivity } from '../../utils/analyticsTracker';
 import { getAdminUser, adminLogout, changeAdminCredentials } from '../../utils/adminAuth';
 import { INITIAL_APP_USERS, fetchLiveAppUsers, saveLocalUser, deleteLocalUser, getStoredLocalUsers } from '../../data/appUsersData';
 
@@ -152,6 +152,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await purgeAdminActivity();
       const [liveUsers, liveStats] = await Promise.all([
         fetchLiveAppUsers(),
         fetchLiveAnalytics()
@@ -175,6 +176,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
 
     const refreshAll = async () => {
       try {
+        await purgeAdminActivity();
         const [liveUsers, liveStats] = await Promise.all([
           fetchLiveAppUsers(),
           fetchLiveAnalytics()
@@ -730,20 +732,37 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                   <h4 style={{ margin: 0, fontSize: '1rem', color: '#F4F1DE' }}>Visitor Operating Systems</h4>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {Object.entries(analytics.devices || {}).map(([dev, count]) => {
-                    const pct = analytics.totalVisitors > 0 ? Math.round((count / analytics.totalVisitors) * 100) : 0;
-                    return (
-                      <div key={dev}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
-                          <span style={{ textTransform: 'capitalize', color: 'rgba(244, 241, 222, 0.85)' }}>{dev}</span>
-                          <span style={{ color: '#D4AF37', fontWeight: 600 }}>{count} ({pct}%)</span>
+                  {(() => {
+                    const displayDevices = { ...(analytics.devices || {}) };
+                    // Exclude admin Windows visits from telemetry metrics
+                    displayDevices.windows = 0;
+
+                    const totalOsCount = Object.values(displayDevices).reduce((sum, val) => sum + (Number(val) || 0), 0);
+                    const osLabels = {
+                      android: 'Android',
+                      ios: 'iOS',
+                      windows: 'Windows',
+                      mac: 'macOS',
+                      linux: 'Linux'
+                    };
+
+                    return Object.entries(displayDevices).map(([dev, count]) => {
+                      const num = Number(count) || 0;
+                      const pct = totalOsCount > 0 ? Math.round((num / totalOsCount) * 100) : 0;
+                      const label = osLabels[dev] || dev;
+                      return (
+                        <div key={dev}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                            <span style={{ color: 'rgba(244, 241, 222, 0.85)' }}>{label}</span>
+                            <span style={{ color: '#D4AF37', fontWeight: 600 }}>{num} ({pct}%)</span>
+                          </div>
+                          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: '#D4AF37', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                          </div>
                         </div>
-                        <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: '#D4AF37', borderRadius: '3px' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
@@ -761,20 +780,37 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                   <h4 style={{ margin: 0, fontSize: '1rem', color: '#F4F1DE' }}>Traffic Acquisition Sources</h4>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {Object.entries(analytics.referrers || {}).map(([ref, count]) => {
-                    const pct = analytics.totalVisitors > 0 ? Math.round((count / analytics.totalVisitors) * 100) : 0;
-                    return (
-                      <div key={ref}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
-                          <span style={{ textTransform: 'capitalize', color: 'rgba(244, 241, 222, 0.85)' }}>{ref}</span>
-                          <span style={{ color: '#778D7A', fontWeight: 600 }}>{count} ({pct}%)</span>
+                  {(() => {
+                    const displayReferrers = { ...(analytics.referrers || {}) };
+                    // Exclude admin Google search / direct visits
+                    displayReferrers.google = 0;
+
+                    const totalReferrerCount = Object.values(displayReferrers).reduce((sum, val) => sum + (Number(val) || 0), 0);
+                    const refLabels = {
+                      direct: 'Direct',
+                      google: 'Google',
+                      github: 'GitHub',
+                      whatsapp: 'WhatsApp',
+                      instagram: 'Instagram'
+                    };
+
+                    return Object.entries(displayReferrers).map(([ref, count]) => {
+                      const num = Number(count) || 0;
+                      const pct = totalReferrerCount > 0 ? Math.round((num / totalReferrerCount) * 100) : 0;
+                      const label = refLabels[ref] || ref;
+                      return (
+                        <div key={ref}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                            <span style={{ color: 'rgba(244, 241, 222, 0.85)' }}>{label}</span>
+                            <span style={{ color: '#778D7A', fontWeight: 600 }}>{num} ({pct}%)</span>
+                          </div>
+                          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: '#778D7A', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                          </div>
                         </div>
-                        <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: '#778D7A', borderRadius: '3px' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
@@ -1345,7 +1381,11 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                 const genuineEvents = (analytics.recentEvents || []).filter(ev => {
                   if (!ev) return false;
                   const p = (ev.path || '').toLowerCase();
-                  return !p.startsWith('/admin') && !p.includes('admin');
+                  const d = (ev.device || '').toLowerCase();
+                  // Strictly filter out any admin routes and admin device events
+                  if (p.startsWith('/admin') || p.includes('admin')) return false;
+                  if (d.includes('windows')) return false;
+                  return true;
                 });
 
                 if (genuineEvents.length === 0) {

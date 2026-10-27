@@ -99,13 +99,22 @@ function readFromTmp() {
     }
   } catch (_) {}
 
-  // Filter out any admin visits from memory
+  // Filter out any admin visits from memory (admin uses Windows)
   if (Array.isArray(memoryAnalytics.recentEvents)) {
     memoryAnalytics.recentEvents = memoryAnalytics.recentEvents.filter(e => {
       if (!e) return false;
       const p = (e.path || '').toLowerCase();
-      return !p.startsWith('/admin') && !p.includes('admin');
+      const d = (e.device || '').toLowerCase();
+      return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
     });
+  }
+
+  // Admin visits must never pollute Windows OS metrics or Google referrer metrics
+  if (memoryAnalytics.devices) {
+    memoryAnalytics.devices.windows = 0;
+  }
+  if (memoryAnalytics.referrers) {
+    memoryAnalytics.referrers.google = 0;
   }
 
   // Ensure daily history is reconciled with true totals
@@ -150,10 +159,43 @@ export default async function handler(req, res) {
       const now = Date.now();
       const todayStr = new Date().toISOString().split('T')[0];
 
+      if (event.type === 'purge_admin') {
+        const initialLen = memoryAnalytics.recentEvents.length;
+        memoryAnalytics.recentEvents = (memoryAnalytics.recentEvents || []).filter(e => {
+          if (!e) return false;
+          const p = (e.path || '').toLowerCase();
+          const d = (e.device || '').toLowerCase();
+          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
+        });
+
+        const removed = Math.max(1, initialLen - memoryAnalytics.recentEvents.length);
+        memoryAnalytics.totalVisitors = Math.max(0, (memoryAnalytics.totalVisitors || 0) - removed);
+        memoryAnalytics.totalPageViews = Math.max(0, (memoryAnalytics.totalPageViews || 0) - removed);
+
+        if (memoryAnalytics.devices) memoryAnalytics.devices.windows = 0;
+        if (memoryAnalytics.referrers) memoryAnalytics.referrers.google = 0;
+
+        const today = memoryAnalytics.dailyHistory.find(d => d.date === todayStr);
+        if (today) {
+          today.visitors = Math.max(0, (today.visitors || 0) - removed);
+        }
+
+        memoryAnalytics.dailyHistory = reconcileDailyHistory(
+          memoryAnalytics.dailyHistory,
+          memoryAnalytics.totalVisitors,
+          memoryAnalytics.totalDownloads
+        );
+
+        saveToTmp();
+        return res.status(200).json({ success: true, analytics: memoryAnalytics });
+      }
+
       if (event.type === 'page_view') {
         const path = (event.path || '/').toLowerCase();
         const search = (event.search || '').toLowerCase();
+        const dev = (event.device || 'android').toLowerCase();
         const isExplicitAdmin = event.isAdmin ||
+          dev === 'windows' ||
           path.startsWith('/admin') ||
           path.includes('admin') ||
           search.includes('admin') ||
