@@ -572,7 +572,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
           {[
             { id: 'analytics', label: 'Website & Download Analytics', icon: <TrendingUp size={16} /> },
             { id: 'users', label: `App Users Directory (${appUsers.length})`, icon: <Users size={16} /> },
-            { id: 'events', label: 'Live Activity Stream', icon: <Clock size={16} /> },
+            { id: 'events', label: 'Activity Stream', icon: <Clock size={16} /> },
             { id: 'settings', label: 'Admin Security & Vault', icon: <KeyRound size={16} /> }
           ].map(tab => {
             const isActive = activeTab === tab.id;
@@ -1315,7 +1315,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
           </div>
         )}
 
-        {/* TAB 3: LIVE EVENT STREAM */}
+        {/* TAB 3: ACTIVITY STREAM */}
         {activeTab === 'events' && (
           <div
             style={{
@@ -1325,73 +1325,121 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               padding: '24px'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '1.2rem', color: '#F4F1DE' }}>
-                  Real-Time Event Stream
+                <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '1.25rem', color: '#F4F1DE' }}>
+                  Activity Stream
                 </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'rgba(212, 196, 168, 0.65)' }}>
-                  Live stream of visits and APK downloads logged by the Sielo telemetry engine
+                <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: 'rgba(212, 196, 168, 0.65)' }}>
+                  All genuine website visits and APK downloads logged by the Sielo telemetry engine with exact timestamps
                 </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: 'rgba(212, 196, 168, 0.7)' }}>
+                <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#778D7A', boxShadow: '0 0 8px #778D7A' }} />
+                <span>Telemetry Active (Admin excluded)</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {(!analytics.recentEvents || analytics.recentEvents.length === 0) && (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(212, 196, 168, 0.55)' }}>
-                  <Activity size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
-                  <div style={{ fontWeight: 600, color: '#F4F1DE', marginBottom: '4px' }}>No Telemetry Events Logged Yet</div>
-                  <div style={{ fontSize: '0.82rem' }}>
-                    Live tracking is active. Real page views and APK downloads will stream here in real time.
-                  </div>
-                </div>
-              )}
-              {analytics.recentEvents?.map(event => {
-                const isDownload = event.type === 'download';
-                const timeAgo = formatTimeAgo(event.time);
-                return (
-                  <div
-                    key={event.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      background: 'rgba(7, 11, 18, 0.5)',
-                      border: '1px solid rgba(212, 196, 168, 0.12)',
-                      borderRadius: '12px',
-                      padding: '12px 18px',
-                      fontSize: '0.84rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          background: isDownload ? 'rgba(119, 141, 122, 0.2)' : 'rgba(212, 175, 55, 0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        {isDownload ? <Download size={16} color="#778D7A" /> : <Eye size={16} color="#D4AF37" />}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(() => {
+                const genuineEvents = (analytics.recentEvents || []).filter(ev => {
+                  if (!ev) return false;
+                  const p = (ev.path || '').toLowerCase();
+                  return !p.startsWith('/admin') && !p.includes('admin');
+                });
+
+                if (genuineEvents.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(212, 196, 168, 0.55)' }}>
+                      <Activity size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                      <div style={{ fontWeight: 600, color: '#F4F1DE', marginBottom: '4px' }}>No User Activity Recorded Yet</div>
+                      <div style={{ fontSize: '0.82rem' }}>
+                        Genuine website visitors and APK downloads will appear here with exact timestamps. Admin actions are filtered out.
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#F4F1DE' }}>
-                          {isDownload ? `APK Downloaded (${event.version || 'v11.5.6'})` : `Page Visited (${event.path || '/'})`}
+                    </div>
+                  );
+                }
+
+                return genuineEvents.map(event => {
+                  const isDownload = event.type === 'download';
+                  const timeAgo = formatTimeAgo(event.time);
+                  const formattedDateTime = formatEventDateTime(event.time);
+
+                  return (
+                    <div
+                      key={event.id || `${event.time}-${Math.random()}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(7, 11, 18, 0.55)',
+                        border: isDownload ? '1px solid rgba(119, 141, 122, 0.3)' : '1px solid rgba(212, 196, 168, 0.15)',
+                        borderRadius: '14px',
+                        padding: '14px 20px',
+                        fontSize: '0.86rem',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '10px',
+                            background: isDownload ? 'rgba(119, 141, 122, 0.2)' : 'rgba(212, 175, 55, 0.15)',
+                            border: isDownload ? '1px solid rgba(119, 141, 122, 0.4)' : '1px solid rgba(212, 175, 55, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}
+                        >
+                          {isDownload ? <Download size={18} color="#778D7A" /> : <Eye size={18} color="#D4AF37" />}
                         </div>
-                        <div style={{ fontSize: '0.74rem', color: 'rgba(212, 196, 168, 0.6)' }}>
-                          Device: {event.device || 'Android'}
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#F4F1DE', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span>{isDownload ? `APK Download (${event.version || 'v11.5.6'})` : `Website Visit (${event.path || '/'})`}</span>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontWeight: 700,
+                                background: isDownload ? 'rgba(119, 141, 122, 0.25)' : 'rgba(212, 175, 55, 0.2)',
+                                color: isDownload ? '#88AA8C' : '#E5C365',
+                                border: isDownload ? '1px solid rgba(119, 141, 122, 0.35)' : '1px solid rgba(212, 175, 55, 0.3)'
+                              }}
+                            >
+                              {isDownload ? 'DOWNLOAD' : 'PAGE VISIT'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: 'rgba(212, 196, 168, 0.65)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span>Device: <strong style={{ color: '#F4F1DE' }}>{event.device || 'Android'}</strong></span>
+                            {event.browser && <span>• Browser: <strong style={{ color: '#F4F1DE' }}>{event.browser}</strong></span>}
+                            {event.referrer && event.referrer !== 'direct' && <span>• Source: <strong style={{ color: '#D4AF37' }}>{event.referrer}</strong></span>}
+                            {event.fileName && <span>• File: <strong style={{ color: '#778D7A' }}>{event.fileName}</strong></span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Exact Timestamp & Relative Badge */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#F4F1DE', letterSpacing: '0.3px' }}>
+                          {formattedDateTime}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Clock size={11} color="rgba(212, 196, 168, 0.5)" />
+                          <span style={{ fontSize: '0.72rem', color: 'rgba(212, 196, 168, 0.55)' }}>
+                            {timeAgo}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <span style={{ fontSize: '0.74rem', color: 'rgba(212, 196, 168, 0.5)' }}>
-                      {timeAgo}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
@@ -1579,4 +1627,23 @@ function formatTimeAgo(timestamp) {
   if (diffHour < 24) return `${diffHour}h ago`;
   const diffDays = Math.floor(diffHour / 24);
   return `${diffDays}d ago`;
+}
+
+function formatEventDateTime(timestamp) {
+  if (!timestamp) return 'Recent';
+  try {
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) return 'Recent';
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return 'Recent';
+  }
 }

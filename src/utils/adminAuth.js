@@ -202,6 +202,7 @@ export function createAdminSession(username, token) {
   };
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    localStorage.setItem('__sielo_is_admin', 'true');
   } catch (e) {
     console.error('Session write failed', e);
   }

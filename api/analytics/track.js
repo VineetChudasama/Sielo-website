@@ -23,11 +23,50 @@ export function alignDailyHistory(existing = []) {
     targetDays.push({
       date: dateStr,
       label: dayLabel,
-      visitors: prev ? (Number(prev.visitors) || 0) : 0,
-      downloads: prev ? (Number(prev.downloads) || 0) : 0
+      visitors: prev ? (Math.max(0, Number(prev.visitors)) || 0) : 0,
+      downloads: prev ? (Math.max(0, Number(prev.downloads)) || 0) : 0
     });
   }
   return targetDays;
+}
+
+export function reconcileDailyHistory(history = [], totalVisitors = 0, totalDownloads = 0) {
+  const aligned = alignDailyHistory(history);
+
+  aligned.forEach(d => {
+    d.visitors = Math.max(0, Number(d.visitors) || 0);
+    d.downloads = Math.max(0, Number(d.downloads) || 0);
+  });
+
+  const tVisitors = Math.max(0, Number(totalVisitors) || 0);
+  const tDownloads = Math.max(0, Number(totalDownloads) || 0);
+
+  let visitorSum = aligned.reduce((sum, d) => sum + d.visitors, 0);
+  let downloadSum = aligned.reduce((sum, d) => sum + d.downloads, 0);
+
+  if (visitorSum > tVisitors) {
+    let excess = visitorSum - tVisitors;
+    for (let i = 0; i < aligned.length && excess > 0; i++) {
+      if (aligned[i].visitors > 0) {
+        const take = Math.min(aligned[i].visitors, excess);
+        aligned[i].visitors -= take;
+        excess -= take;
+      }
+    }
+  }
+
+  if (downloadSum > tDownloads) {
+    let excess = downloadSum - tDownloads;
+    for (let i = 0; i < aligned.length && excess > 0; i++) {
+      if (aligned[i].downloads > 0) {
+        const take = Math.min(aligned[i].downloads, excess);
+        aligned[i].downloads -= take;
+        excess -= take;
+      }
+    }
+  }
+
+  return aligned;
 }
 
 let memoryAnalytics = {
@@ -41,23 +80,43 @@ let memoryAnalytics = {
   recentEvents: []
 };
 
-// Warm read from temporary storage if available
-try {
-  if (fs.existsSync(TMP_FILE)) {
-    const raw = fs.readFileSync(TMP_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.totalDownloads === 'number') {
-      memoryAnalytics = {
-        ...memoryAnalytics,
-        ...parsed,
-        devices: { ...memoryAnalytics.devices, ...(parsed.devices || {}) },
-        browsers: { ...memoryAnalytics.browsers, ...(parsed.browsers || {}) },
-        referrers: { ...memoryAnalytics.referrers, ...(parsed.referrers || {}) },
-        dailyHistory: alignDailyHistory(parsed.dailyHistory)
-      };
+function readFromTmp() {
+  try {
+    if (fs.existsSync(TMP_FILE)) {
+      const raw = fs.readFileSync(TMP_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.totalDownloads === 'number') {
+        memoryAnalytics = {
+          ...memoryAnalytics,
+          ...parsed,
+          devices: { ...memoryAnalytics.devices, ...(parsed.devices || {}) },
+          browsers: { ...memoryAnalytics.browsers, ...(parsed.browsers || {}) },
+          referrers: { ...memoryAnalytics.referrers, ...(parsed.referrers || {}) },
+          dailyHistory: alignDailyHistory(parsed.dailyHistory),
+          recentEvents: Array.isArray(parsed.recentEvents) ? parsed.recentEvents : []
+        };
+      }
     }
+  } catch (_) {}
+
+  // Filter out any admin visits from memory
+  if (Array.isArray(memoryAnalytics.recentEvents)) {
+    memoryAnalytics.recentEvents = memoryAnalytics.recentEvents.filter(e => {
+      if (!e) return false;
+      const p = (e.path || '').toLowerCase();
+      return !p.startsWith('/admin') && !p.includes('admin');
+    });
   }
-} catch (_) {}
+
+  // Ensure daily history is reconciled with true totals
+  memoryAnalytics.dailyHistory = reconcileDailyHistory(
+    memoryAnalytics.dailyHistory,
+    memoryAnalytics.totalVisitors,
+    memoryAnalytics.totalDownloads
+  );
+}
+
+readFromTmp();
 
 function saveToTmp() {
   try {
@@ -74,8 +133,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Ensure daily history always matches current 14 calendar days
-  memoryAnalytics.dailyHistory = alignDailyHistory(memoryAnalytics.dailyHistory);
+  readFromTmp();
 
   // GET: Return current live analytics state
   if (req.method === 'GET') {
@@ -91,43 +149,63 @@ export default async function handler(req, res) {
       const event = req.body || {};
       const now = Date.now();
       const todayStr = new Date().toISOString().split('T')[0];
-      const today = memoryAnalytics.dailyHistory.find(d => d.date === todayStr);
 
       if (event.type === 'page_view') {
         const path = (event.path || '/').toLowerCase();
-        if (!path.startsWith('/admin')) {
-          memoryAnalytics.totalPageViews = (memoryAnalytics.totalPageViews || 0) + 1;
-          if (event.isNewSession) {
-            memoryAnalytics.totalVisitors = (memoryAnalytics.totalVisitors || 0) + 1;
-            const dev = (event.device || 'android').toLowerCase();
-            if (memoryAnalytics.devices[dev] !== undefined) {
-              memoryAnalytics.devices[dev] = (memoryAnalytics.devices[dev] || 0) + 1;
-            }
-            const br = (event.browser || 'chrome').toLowerCase();
-            if (memoryAnalytics.browsers[br] !== undefined) {
-              memoryAnalytics.browsers[br] = (memoryAnalytics.browsers[br] || 0) + 1;
-            }
-            const ref = (event.referrer || 'direct').toLowerCase();
-            if (memoryAnalytics.referrers[ref] !== undefined) {
-              memoryAnalytics.referrers[ref] = (memoryAnalytics.referrers[ref] || 0) + 1;
-            }
+        const search = (event.search || '').toLowerCase();
+        const isExplicitAdmin = event.isAdmin ||
+          path.startsWith('/admin') ||
+          path.includes('admin') ||
+          search.includes('admin') ||
+          search.includes('page=admin');
 
-            if (today) {
-              today.visitors = (today.visitors || 0) + 1;
-            }
+        // Strictly ignore any administrator visits
+        if (isExplicitAdmin) {
+          return res.status(200).json({ success: true, analytics: memoryAnalytics });
+        }
+
+        memoryAnalytics.totalPageViews = (memoryAnalytics.totalPageViews || 0) + 1;
+        if (event.isNewSession) {
+          memoryAnalytics.totalVisitors = (memoryAnalytics.totalVisitors || 0) + 1;
+          const dev = (event.device || 'android').toLowerCase();
+          if (memoryAnalytics.devices[dev] !== undefined) {
+            memoryAnalytics.devices[dev] = (memoryAnalytics.devices[dev] || 0) + 1;
+          }
+          const br = (event.browser || 'chrome').toLowerCase();
+          if (memoryAnalytics.browsers[br] !== undefined) {
+            memoryAnalytics.browsers[br] = (memoryAnalytics.browsers[br] || 0) + 1;
+          }
+          const ref = (event.referrer || 'direct').toLowerCase();
+          if (memoryAnalytics.referrers[ref] !== undefined) {
+            memoryAnalytics.referrers[ref] = (memoryAnalytics.referrers[ref] || 0) + 1;
           }
 
-          memoryAnalytics.recentEvents.unshift({
-            id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
-            type: 'visit',
-            path: event.path || '/',
-            device: `${(event.device || 'Android').toUpperCase()} (${event.browser || 'Browser'})`,
-            time: now
-          });
-          if (memoryAnalytics.recentEvents.length > 50) memoryAnalytics.recentEvents.pop();
+          memoryAnalytics.dailyHistory = alignDailyHistory(memoryAnalytics.dailyHistory);
+          const today = memoryAnalytics.dailyHistory.find(d => d.date === todayStr);
+          if (today) {
+            today.visitors = (today.visitors || 0) + 1;
+          }
         }
+
+        memoryAnalytics.recentEvents.unshift({
+          id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
+          type: 'visit',
+          path: event.path || '/',
+          device: `${(event.device || 'Android').toUpperCase()} (${event.browser || 'Browser'})`,
+          browser: event.browser || 'Browser',
+          referrer: event.referrer || 'direct',
+          time: now
+        });
+        if (memoryAnalytics.recentEvents.length > 50) memoryAnalytics.recentEvents.pop();
+
       } else if (event.type === 'apk_download') {
+        if (event.isAdmin) {
+          return res.status(200).json({ success: true, analytics: memoryAnalytics });
+        }
+
         memoryAnalytics.totalDownloads = (memoryAnalytics.totalDownloads || 0) + 1;
+        memoryAnalytics.dailyHistory = alignDailyHistory(memoryAnalytics.dailyHistory);
+        const today = memoryAnalytics.dailyHistory.find(d => d.date === todayStr);
         if (today) {
           today.downloads = (today.downloads || 0) + 1;
         }
@@ -136,11 +214,18 @@ export default async function handler(req, res) {
           id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
           type: 'download',
           version: event.version || 'v11.5.6',
+          fileName: event.fileName || 'Sielo-11.5.6.apk',
           device: (event.device || 'Android').toUpperCase(),
           time: now
         });
         if (memoryAnalytics.recentEvents.length > 50) memoryAnalytics.recentEvents.pop();
       }
+
+      memoryAnalytics.dailyHistory = reconcileDailyHistory(
+        memoryAnalytics.dailyHistory,
+        memoryAnalytics.totalVisitors,
+        memoryAnalytics.totalDownloads
+      );
 
       saveToTmp();
       return res.status(200).json({ success: true, analytics: memoryAnalytics });

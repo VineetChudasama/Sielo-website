@@ -30,11 +30,82 @@ export function alignDailyHistory(existing = []) {
     targetDays.push({
       date: dateStr,
       label: dayLabel,
-      visitors: prev ? (Number(prev.visitors) || 0) : 0,
-      downloads: prev ? (Number(prev.downloads) || 0) : 0
+      visitors: prev ? (Math.max(0, Number(prev.visitors)) || 0) : 0,
+      downloads: prev ? (Math.max(0, Number(prev.downloads)) || 0) : 0
     });
   }
   return targetDays;
+}
+
+/**
+ * Reconciles the 14-day history array against true total visitors and downloads.
+ * Eliminates artificial phantom increments (such as from daily admin visits).
+ */
+export function reconcileDailyHistory(history = [], totalVisitors = 0, totalDownloads = 0) {
+  const aligned = alignDailyHistory(history);
+
+  aligned.forEach(d => {
+    d.visitors = Math.max(0, Number(d.visitors) || 0);
+    d.downloads = Math.max(0, Number(d.downloads) || 0);
+  });
+
+  const tVisitors = Math.max(0, Number(totalVisitors) || 0);
+  const tDownloads = Math.max(0, Number(totalDownloads) || 0);
+
+  let visitorSum = aligned.reduce((sum, d) => sum + d.visitors, 0);
+  let downloadSum = aligned.reduce((sum, d) => sum + d.downloads, 0);
+
+  // If daily visitors exceed true total visitors, prune excess starting from oldest days
+  if (visitorSum > tVisitors) {
+    let excess = visitorSum - tVisitors;
+    for (let i = 0; i < aligned.length && excess > 0; i++) {
+      if (aligned[i].visitors > 0) {
+        const take = Math.min(aligned[i].visitors, excess);
+        aligned[i].visitors -= take;
+        excess -= take;
+      }
+    }
+  }
+
+  // If daily downloads exceed true total downloads, prune excess starting from oldest days
+  if (downloadSum > tDownloads) {
+    let excess = downloadSum - tDownloads;
+    for (let i = 0; i < aligned.length && excess > 0; i++) {
+      if (aligned[i].downloads > 0) {
+        const take = Math.min(aligned[i].downloads, excess);
+        aligned[i].downloads -= take;
+        excess -= take;
+      }
+    }
+  }
+
+  return aligned;
+}
+
+/**
+ * Strictly identifies if the current browser session or visitor is an Administrator
+ */
+export function isAdminUser() {
+  try {
+    if (typeof window === 'undefined') return false;
+    if (localStorage.getItem('__sielo_is_admin') === 'true') return true;
+    if (sessionStorage.getItem('__sielo_admin_session_token')) return true;
+    if (localStorage.getItem('__sielo_admin_vault_secret')) return true;
+    const path = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    if (
+      path.startsWith('/admin') ||
+      path === '/admin' ||
+      path.includes('admin') ||
+      search.includes('page=admin') ||
+      search.includes('admin')
+    ) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function getCleanInitialAnalytics() {
@@ -86,7 +157,24 @@ export function getStoredAnalytics() {
       return clean;
     }
 
-    parsed.dailyHistory = alignDailyHistory(parsed.dailyHistory);
+    // Filter out any admin visits from recent events
+    if (Array.isArray(parsed.recentEvents)) {
+      parsed.recentEvents = parsed.recentEvents.filter(ev => {
+        if (!ev) return false;
+        const p = (ev.path || '').toLowerCase();
+        return !p.startsWith('/admin') && !p.includes('admin');
+      });
+    } else {
+      parsed.recentEvents = [];
+    }
+
+    // Reconcile daily history with true totals to eliminate phantom visitor increments
+    parsed.dailyHistory = reconcileDailyHistory(
+      parsed.dailyHistory,
+      parsed.totalVisitors || 0,
+      parsed.totalDownloads || 0
+    );
+
     return parsed;
   } catch {
     return getCleanInitialAnalytics();
@@ -148,14 +236,21 @@ async function sendAnalyticsBeacon(payload) {
 
 export function trackPageView(path = window.location.pathname) {
   try {
+    // 1. Check if user is an Administrator (strictly skip tracking admin)
+    if (isAdminUser()) {
+      return;
+    }
+
     const currentPath = (path || window.location.pathname || '').toLowerCase();
     const search = (window.location.search || '').toLowerCase();
 
-    // NEVER count admin page visits, admin dashboard views, or admin refreshes
+    // NEVER count admin page visits, admin dashboard views, or admin logins
     if (
       currentPath.startsWith('/admin') ||
       currentPath === '/admin' ||
-      search.includes('page=admin')
+      currentPath.includes('admin') ||
+      search.includes('page=admin') ||
+      search.includes('admin')
     ) {
       return;
     }
@@ -204,19 +299,27 @@ export function trackPageView(path = window.location.pathname) {
       stats.recentEvents.unshift({
         id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
         type: 'visit',
-        path,
+        path: path || '/',
         device: `${device.toUpperCase()} (${browser})`,
+        browser,
+        referrer,
         time: now
       });
       if (stats.recentEvents.length > 50) stats.recentEvents.pop();
     }
+
+    stats.dailyHistory = reconcileDailyHistory(
+      stats.dailyHistory,
+      stats.totalVisitors || 0,
+      stats.totalDownloads || 0
+    );
 
     saveAnalytics(stats);
 
     // Dispatch single beacon to backend
     sendAnalyticsBeacon({
       type: 'page_view',
-      path,
+      path: path || '/',
       device,
       browser,
       referrer,
@@ -229,6 +332,11 @@ export function trackPageView(path = window.location.pathname) {
 
 export function trackApkDownload(version = 'v11.5.6', fileName = 'Sielo-11.5.6.apk') {
   try {
+    // 1. Strictly skip if user is Administrator
+    if (isAdminUser()) {
+      return;
+    }
+
     const now = Date.now();
     // Debounce multi-clicks within 1.5 seconds
     const lastDl = parseInt(sessionStorage.getItem(LAST_DOWNLOAD_TIMESTAMP_KEY) || '0', 10);
@@ -249,15 +357,24 @@ export function trackApkDownload(version = 'v11.5.6', fileName = 'Sielo-11.5.6.a
     }
 
     const device = detectDevice();
+    const browser = detectBrowser();
     if (!stats.recentEvents) stats.recentEvents = [];
     stats.recentEvents.unshift({
       id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
       type: 'download',
       version,
+      fileName,
       device: device.toUpperCase(),
+      browser,
       time: now
     });
     if (stats.recentEvents.length > 50) stats.recentEvents.pop();
+
+    stats.dailyHistory = reconcileDailyHistory(
+      stats.dailyHistory,
+      stats.totalVisitors || 0,
+      stats.totalDownloads || 0
+    );
 
     saveAnalytics(stats);
 
@@ -288,8 +405,27 @@ export async function fetchLiveAnalytics() {
       if (data && data.success && data.analytics) {
         const s = data.analytics;
 
+        // Clean & merge events: strictly filter out any admin visits/logins
+        const serverEvents = (s.recentEvents || []).filter(e => e && !e.path?.toLowerCase().includes('admin'));
+        const localEvents = (localStats.recentEvents || []).filter(e => e && !e.path?.toLowerCase().includes('admin'));
+
+        const combinedEvents = [...serverEvents, ...localEvents];
+        const uniqueEventsMap = new Map();
+        combinedEvents.forEach(ev => {
+          if (ev && ev.id && !uniqueEventsMap.has(ev.id)) {
+            uniqueEventsMap.set(ev.id, ev);
+          }
+        });
+        const mergedEvents = Array.from(uniqueEventsMap.values())
+          .sort((a, b) => (b.time || 0) - (a.time || 0))
+          .slice(0, 50);
+
+        const mergedTotalVisitors = Math.max(Number(s.totalVisitors) || 0, Number(localStats.totalVisitors) || 0);
+        const mergedTotalDownloads = Math.max(Number(s.totalDownloads) || 0, Number(localStats.totalDownloads) || 0);
+        const mergedTotalPageViews = Math.max(Number(s.totalPageViews) || 0, Number(localStats.totalPageViews) || 0);
+
         // Properly align and merge 14-day history by date
-        const alignedHistory = alignDailyHistory(s.dailyHistory || localStats.dailyHistory || []);
+        const alignedHistory = alignDailyHistory(s.dailyHistory || []);
         if (Array.isArray(localStats.dailyHistory)) {
           localStats.dailyHistory.forEach(localDay => {
             const target = alignedHistory.find(d => d.date === localDay.date);
@@ -300,11 +436,18 @@ export async function fetchLiveAnalytics() {
           });
         }
 
+        // Reconcile merged daily history with true visitor & download totals
+        const reconciledHistory = reconcileDailyHistory(
+          alignedHistory,
+          mergedTotalVisitors,
+          mergedTotalDownloads
+        );
+
         const merged = {
           ...localStats,
-          totalVisitors: Math.max(s.totalVisitors || 0, localStats.totalVisitors || 0),
-          totalPageViews: Math.max(s.totalPageViews || 0, localStats.totalPageViews || 0),
-          totalDownloads: Math.max(s.totalDownloads || 0, localStats.totalDownloads || 0),
+          totalVisitors: mergedTotalVisitors,
+          totalPageViews: mergedTotalPageViews,
+          totalDownloads: mergedTotalDownloads,
           devices: {
             android: Math.max(s.devices?.android || 0, localStats.devices?.android || 0),
             windows: Math.max(s.devices?.windows || 0, localStats.devices?.windows || 0),
@@ -326,8 +469,8 @@ export async function fetchLiveAnalytics() {
             whatsapp: Math.max(s.referrers?.whatsapp || 0, localStats.referrers?.whatsapp || 0),
             instagram: Math.max(s.referrers?.instagram || 0, localStats.referrers?.instagram || 0),
           },
-          dailyHistory: alignedHistory,
-          recentEvents: (s.recentEvents && s.recentEvents.length > 0) ? s.recentEvents : localStats.recentEvents
+          dailyHistory: reconciledHistory,
+          recentEvents: mergedEvents
         };
         saveAnalytics(merged);
         return merged;

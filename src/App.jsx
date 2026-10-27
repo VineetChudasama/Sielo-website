@@ -19,16 +19,31 @@ function App() {
   const hasTrackedInitial = React.useRef(false);
 
   React.useEffect(() => {
-    // Record page view event once on initial mount (skipping admin)
-    if (!hasTrackedInitial.current && !window.location.pathname.startsWith('/admin')) {
+    const isCurrentRouteAdmin = () => {
+      try {
+        const p = (window.location.pathname || '').toLowerCase();
+        const s = (window.location.search || '').toLowerCase();
+        if (p.startsWith('/admin') || p.includes('admin') || s.includes('page=admin') || s.includes('admin')) return true;
+        if (sessionStorage.getItem('__sielo_admin_session_token')) return true;
+        if (localStorage.getItem('__sielo_is_admin') === 'true') return true;
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    // Record page view event once on initial mount (strictly skipping admin)
+    if (!hasTrackedInitial.current) {
       hasTrackedInitial.current = true;
-      trackPageView(window.location.pathname);
+      if (routeInfo?.type !== 'admin' && !isCurrentRouteAdmin()) {
+        trackPageView(window.location.pathname);
+      }
     }
 
     const handlePopState = () => {
       const newRoute = parseCurrentRoute();
       setRouteInfo(newRoute);
-      if (newRoute?.type !== 'admin' && !window.location.pathname.startsWith('/admin')) {
+      if (newRoute?.type !== 'admin' && !isCurrentRouteAdmin()) {
         trackPageView(window.location.pathname);
       }
     };
