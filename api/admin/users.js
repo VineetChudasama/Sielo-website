@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         isPlaying: Boolean(user.isPlaying),
         currentTrack: user.currentTrack || '',
         currentArtist: user.currentArtist || '',
-        appVersion: user.appVersion || '11.5.6',
+        appVersion: user.appVersion || '11.6.0',
         device: user.device || 'Android'
       };
 
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
               isPlaying: isPlaying,
               currentTrack: currentTrack,
               currentArtist: currentArtist,
-              appVersion: pf.appVersion?.stringValue || docFields.appVersion?.stringValue || '11.5.6',
+              appVersion: pf.appVersion?.stringValue || docFields.appVersion?.stringValue || '11.6.0',
               device: pf.deviceModel?.stringValue || docFields.deviceModel?.stringValue || 'Android'
             };
 

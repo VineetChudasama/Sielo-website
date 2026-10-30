@@ -30,6 +30,7 @@ export function alignDailyHistory(existing = []) {
     targetDays.push({
       date: dateStr,
       label: dayLabel,
+      pageViews: prev ? (Math.max(0, Number(prev.pageViews || prev.visitors)) || 0) : 0,
       visitors: prev ? (Math.max(0, Number(prev.visitors)) || 0) : 0,
       downloads: prev ? (Math.max(0, Number(prev.downloads)) || 0) : 0
     });
@@ -147,14 +148,16 @@ export async function purgeAdminActivity() {
     const stats = getStoredAnalytics();
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Filter out all admin visits (admin runs Windows Chrome)
+    // Filter out all admin visits (admin runs Windows Chrome from Google)
     const initialEventsCount = stats.recentEvents ? stats.recentEvents.length : 0;
     stats.recentEvents = (stats.recentEvents || []).filter(ev => {
       if (!ev) return false;
       const p = (ev.path || '').toLowerCase();
       const d = (ev.device || '').toLowerCase();
+      const r = (ev.referrer || '').toLowerCase();
       if (p.startsWith('/admin') || p.includes('admin')) return false;
       if (d.includes('windows')) return false;
+      if (r.includes('google')) return false;
       return true;
     });
 
@@ -246,14 +249,16 @@ export function getStoredAnalytics() {
       return clean;
     }
 
-    // Filter out any admin visits from recent events (admin uses Windows Chrome)
+    // Filter out any admin visits from recent events (admin uses Windows Chrome from Google)
     if (Array.isArray(parsed.recentEvents)) {
       parsed.recentEvents = parsed.recentEvents.filter(ev => {
         if (!ev) return false;
         const p = (ev.path || '').toLowerCase();
         const d = (ev.device || '').toLowerCase();
+        const r = (ev.referrer || '').toLowerCase();
         if (p.startsWith('/admin') || p.includes('admin')) return false;
         if (d.includes('windows')) return false;
+        if (r.includes('google')) return false;
         return true;
       });
     } else {
@@ -368,6 +373,13 @@ export function trackPageView(path = window.location.pathname) {
     const stats = getStoredAnalytics();
     stats.totalPageViews = (stats.totalPageViews || 0) + 1;
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    stats.dailyHistory = alignDailyHistory(stats.dailyHistory);
+    const todayEntry = stats.dailyHistory.find(d => d.date === todayStr);
+    if (todayEntry) {
+      todayEntry.pageViews = (todayEntry.pageViews || 0) + 1;
+    }
+
     const browser = detectBrowser();
     const referrer = detectReferrer();
 
@@ -388,31 +400,29 @@ export function trackPageView(path = window.location.pathname) {
       if (!stats.referrers) stats.referrers = { direct: 0, google: 0, github: 0, whatsapp: 0, instagram: 0 };
       stats.referrers[referrer] = (stats.referrers[referrer] || 0) + 1;
 
-      // Update today's entry in 14-day history
-      const todayStr = new Date().toISOString().split('T')[0];
-      stats.dailyHistory = alignDailyHistory(stats.dailyHistory);
-      const todayEntry = stats.dailyHistory.find(d => d.date === todayStr);
       if (todayEntry) {
         todayEntry.visitors = (todayEntry.visitors || 0) + 1;
       }
-
-      if (!stats.recentEvents) stats.recentEvents = [];
-      stats.recentEvents.unshift({
-        id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
-        type: 'visit',
-        path: path || '/',
-        device: `${device.toUpperCase()} (${browser})`,
-        browser,
-        referrer,
-        time: now
-      });
-      if (stats.recentEvents.length > 50) stats.recentEvents.pop();
     }
+
+    // Record every genuine page visit into recentEvents
+    if (!stats.recentEvents) stats.recentEvents = [];
+    stats.recentEvents.unshift({
+      id: `ev-${now}-${Math.floor(Math.random() * 1000)}`,
+      type: 'visit',
+      path: path || '/',
+      device: `${device.toUpperCase()} (${browser})`,
+      browser,
+      referrer,
+      time: now
+    });
+    if (stats.recentEvents.length > 50) stats.recentEvents.pop();
 
     stats.dailyHistory = reconcileDailyHistory(
       stats.dailyHistory,
       stats.totalVisitors || 0,
-      stats.totalDownloads || 0
+      stats.totalDownloads || 0,
+      stats.recentEvents || []
     );
 
     saveAnalytics(stats);
@@ -474,7 +484,8 @@ export function trackApkDownload(version = 'v11.5.6', fileName = 'Sielo-11.5.6.a
     stats.dailyHistory = reconcileDailyHistory(
       stats.dailyHistory,
       stats.totalVisitors || 0,
-      stats.totalDownloads || 0
+      stats.totalDownloads || 0,
+      stats.recentEvents || []
     );
 
     saveAnalytics(stats);
@@ -506,30 +517,35 @@ export async function fetchLiveAnalytics() {
       if (data && data.success && data.analytics) {
         const s = data.analytics;
 
-        // Clean & merge events: strictly filter out any admin visits/logins and admin device visits
-        const serverEvents = (s.recentEvents || []).filter(e => {
+        // Clean & merge events: strictly filter out any admin visits/logins, admin devices, and admin referrers
+        const filterAdmin = e => {
           if (!e) return false;
           const p = (e.path || '').toLowerCase();
           const d = (e.device || '').toLowerCase();
-          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
-        });
-        const localEvents = (localStats.recentEvents || []).filter(e => {
-          if (!e) return false;
-          const p = (e.path || '').toLowerCase();
-          const d = (e.device || '').toLowerCase();
-          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
-        });
+          const r = (e.referrer || '').toLowerCase();
+          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows') && !r.includes('google');
+        };
 
-        const combinedEvents = [...serverEvents, ...localEvents];
-        const uniqueEventsMap = new Map();
-        combinedEvents.forEach(ev => {
-          if (ev && ev.id && !uniqueEventsMap.has(ev.id)) {
-            uniqueEventsMap.set(ev.id, ev);
+        const serverEvents = (s.recentEvents || []).filter(filterAdmin);
+        const localEvents = (localStats.recentEvents || []).filter(filterAdmin);
+
+        const combinedEvents = [...serverEvents, ...localEvents].sort((a, b) => (b.time || 0) - (a.time || 0));
+        
+        // Deduplicate events that are identical in type, path/filename, device and occur within 5 seconds
+        const deduplicatedMerged = [];
+        for (const ev of combinedEvents) {
+          const isDup = deduplicatedMerged.some(prev => {
+            if (prev.type !== ev.type) return false;
+            const sameTarget = (prev.path || prev.fileName || '') === (ev.path || ev.fileName || '');
+            const sameDev = (prev.device || '') === (ev.device || '');
+            const timeDiff = Math.abs((Number(prev.time) || 0) - (Number(ev.time) || 0));
+            return sameTarget && sameDev && timeDiff < 5000;
+          });
+          if (!isDup) {
+            deduplicatedMerged.push(ev);
           }
-        });
-        const mergedEvents = Array.from(uniqueEventsMap.values())
-          .sort((a, b) => (b.time || 0) - (a.time || 0))
-          .slice(0, 50);
+        }
+        const mergedEvents = deduplicatedMerged.slice(0, 50);
 
         const mergedTotalVisitors = Math.max(Number(s.totalVisitors) || 0, Number(localStats.totalVisitors) || 0);
         const mergedTotalDownloads = Math.max(Number(s.totalDownloads) || 0, Number(localStats.totalDownloads) || 0);

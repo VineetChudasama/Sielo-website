@@ -245,12 +245,88 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
     return true;
   });
 
-  const conversionRate = analytics.totalVisitors > 0
-    ? ((analytics.totalDownloads / analytics.totalVisitors) * 100).toFixed(1)
+  // Derive strictly synchronized metrics between Activity Stream genuine events and graph / KPIs
+  const synchronizedAnalytics = React.useMemo(() => {
+    const rawEvents = analytics.recentEvents || [];
+    const genuineEvents = rawEvents.filter(ev => {
+      if (!ev) return false;
+      const p = (ev.path || '').toLowerCase();
+      const d = (ev.device || '').toLowerCase();
+      const r = (ev.referrer || '').toLowerCase();
+      if (p.startsWith('/admin') || p.includes('admin')) return false;
+      if (d.includes('windows')) return false;
+      if (r.includes('google')) return false;
+      return true;
+    });
+
+    // Deduplicate identical events occurring within 5 seconds of each other
+    const deduplicatedEvents = [];
+    for (const ev of genuineEvents) {
+      const isDup = deduplicatedEvents.some(prev => {
+        if (prev.type !== ev.type) return false;
+        const sameTarget = (prev.path || prev.fileName || '') === (ev.path || ev.fileName || '');
+        const sameDevice = (prev.device || '') === (ev.device || '');
+        const timeDiff = Math.abs((Number(prev.time) || 0) - (Number(ev.time) || 0));
+        return sameTarget && sameDevice && timeDiff < 5000;
+      });
+      if (!isDup) deduplicatedEvents.push(ev);
+    }
+
+    const visitEvents = deduplicatedEvents.filter(e => e.type === 'visit');
+    const downloadEvents = deduplicatedEvents.filter(e => e.type === 'download');
+
+    // Aggregate daily stats directly from genuine activity stream events
+    const eventsByDate = {};
+    deduplicatedEvents.forEach(ev => {
+      if (!ev.time) return;
+      const dStr = new Date(ev.time).toISOString().split('T')[0];
+      if (!eventsByDate[dStr]) eventsByDate[dStr] = { visits: 0, devices: new Set(), downloads: 0 };
+      if (ev.type === 'visit') {
+        eventsByDate[dStr].visits++;
+        eventsByDate[dStr].devices.add(ev.device || 'user');
+      } else if (ev.type === 'download') {
+        eventsByDate[dStr].downloads++;
+      }
+    });
+
+    const syncDaily = (analytics.dailyHistory || []).map(day => {
+      const evData = eventsByDate[day.date];
+      const evVisits = evData ? evData.visits : 0;
+      const evDownloads = evData ? evData.downloads : 0;
+      const evVisitors = evData ? evData.devices.size : 0;
+
+      const pageViews = Math.max(Number(day.pageViews || 0), Number(day.visitors || 0), evVisits);
+      const visitors = Math.max(Number(day.visitors || 0), evVisitors);
+      const downloads = Math.max(Number(day.downloads || 0), evDownloads);
+
+      return {
+        ...day,
+        pageViews: pageViews >= visitors ? pageViews : visitors,
+        visitors: visitors,
+        downloads: downloads
+      };
+    });
+
+    const totalPv = Math.max(Number(analytics.totalPageViews) || 0, visitEvents.length);
+    const totalDl = Math.max(Number(analytics.totalDownloads) || 0, downloadEvents.length);
+    const totalVis = Math.max(Number(analytics.totalVisitors) || 0, Math.min(totalPv, syncDaily.reduce((s, d) => s + d.visitors, 0) || visitEvents.length));
+
+    return {
+      ...analytics,
+      totalVisitors: totalVis,
+      totalPageViews: totalPv,
+      totalDownloads: totalDl,
+      dailyHistory: syncDaily,
+      genuineEvents: deduplicatedEvents
+    };
+  }, [analytics]);
+
+  const conversionRate = synchronizedAnalytics.totalVisitors > 0
+    ? ((synchronizedAnalytics.totalDownloads / synchronizedAnalytics.totalVisitors) * 100).toFixed(1)
     : '0.0';
 
   const maxMetricInDaily = Math.max(
-    ...(analytics.dailyHistory?.flatMap(d => [Number(d.visitors || 0), Number(d.downloads || 0)]) || [1]),
+    ...(synchronizedAnalytics.dailyHistory?.flatMap(d => [Number(d.pageViews || d.visitors || 0), Number(d.visitors || 0), Number(d.downloads || 0)]) || [1]),
     1
   );
 
@@ -453,11 +529,11 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               </div>
             </div>
             <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#F4F1DE', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>
-              {analytics.totalVisitors.toLocaleString()}
+              {synchronizedAnalytics.totalVisitors.toLocaleString()}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '0.8rem', color: '#90BE6D' }}>
               <TrendingUp size={14} />
-              <span>{analytics.totalPageViews.toLocaleString()} total page views</span>
+              <span>{synchronizedAnalytics.totalPageViews.toLocaleString()} total page views</span>
             </div>
           </div>
 
@@ -482,7 +558,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               </div>
             </div>
             <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#F4F1DE', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>
-              {analytics.totalDownloads.toLocaleString()}
+              {synchronizedAnalytics.totalDownloads.toLocaleString()}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '0.8rem', color: '#D4AF37' }}>
               <ArrowUpRight size={14} />
@@ -630,6 +706,10 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.82rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#38BDF8' }} />
+                    <span>Page Visits</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#D4AF37' }} />
                     <span>Visitors</span>
                   </div>
@@ -644,15 +724,16 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `repeat(${analytics.dailyHistory?.length || 14}, 1fr)`,
-                  gap: 'clamp(6px, 1.2vw, 16px)',
+                  gridTemplateColumns: `repeat(${synchronizedAnalytics.dailyHistory?.length || 14}, 1fr)`,
+                  gap: 'clamp(4px, 1vw, 14px)',
                   alignItems: 'flex-end',
-                  minHeight: '220px',
+                  minHeight: '230px',
                   paddingTop: '20px',
                   borderBottom: '1px solid rgba(212, 196, 168, 0.15)'
                 }}
               >
-                {analytics.dailyHistory?.map((day, idx) => {
+                {synchronizedAnalytics.dailyHistory?.map((day, idx) => {
+                  const pvHeight = day.pageViews > 0 ? Math.max(Math.round((day.pageViews / maxMetricInDaily) * 150), 10) : 3;
                   const visitorHeight = day.visitors > 0 ? Math.max(Math.round((day.visitors / maxMetricInDaily) * 150), 10) : 3;
                   const downloadHeight = day.downloads > 0 ? Math.max(Math.round((day.downloads / maxMetricInDaily) * 150), 10) : 3;
                   const isToday = day.date === new Date().toISOString().split('T')[0];
@@ -666,36 +747,51 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                         gap: '6px'
                       }}
                     >
-                      <div style={{ fontSize: '0.72rem', color: 'rgba(212, 196, 168, 0.75)', fontWeight: 700 }}>
-                        <span style={{ color: '#D4AF37' }}>{day.visitors}</span>
-                        <span style={{ color: 'rgba(212, 196, 168, 0.35)', margin: '0 2px' }}>/</span>
-                        <span style={{ color: '#778D7A' }}>{day.downloads}</span>
+                      <div style={{ fontSize: '0.68rem', color: 'rgba(212, 196, 168, 0.75)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <span style={{ color: '#38BDF8' }} title="Page Visits">{day.pageViews}</span>
+                        <span style={{ color: 'rgba(212, 196, 168, 0.35)' }}>/</span>
+                        <span style={{ color: '#D4AF37' }} title="Unique Visitors">{day.visitors}</span>
+                        <span style={{ color: 'rgba(212, 196, 168, 0.35)' }}>/</span>
+                        <span style={{ color: '#90BE6D' }} title="Downloads">{day.downloads}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', width: '100%', justifyContent: 'center' }}>
+                        {/* Page Views bar */}
+                        <div
+                          title={`${day.label}: ${day.pageViews} page visits`}
+                          style={{
+                            width: '30%',
+                            maxWidth: '12px',
+                            height: `${pvHeight}px`,
+                            background: 'linear-gradient(to top, rgba(56, 189, 248, 0.45), #38BDF8)',
+                            borderRadius: '3px 3px 0 0',
+                            transition: 'height 0.4s ease',
+                            boxShadow: day.pageViews > 0 ? '0 0 8px rgba(56, 189, 248, 0.25)' : 'none'
+                          }}
+                        />
                         {/* Visitors bar */}
                         <div
-                          title={`${day.label}: ${day.visitors} visitors`}
+                          title={`${day.label}: ${day.visitors} unique visitors`}
                           style={{
-                            width: '45%',
-                            maxWidth: '16px',
+                            width: '30%',
+                            maxWidth: '12px',
                             height: `${visitorHeight}px`,
                             background: 'linear-gradient(to top, rgba(212, 175, 55, 0.5), #D4AF37)',
-                            borderRadius: '4px 4px 0 0',
+                            borderRadius: '3px 3px 0 0',
                             transition: 'height 0.4s ease',
                             boxShadow: day.visitors > 0 ? '0 0 8px rgba(212, 175, 55, 0.25)' : 'none'
                           }}
                         />
                         {/* Downloads bar */}
                         <div
-                          title={`${day.label}: ${day.downloads} downloads`}
+                          title={`${day.label}: ${day.downloads} APK downloads`}
                           style={{
-                            width: '45%',
-                            maxWidth: '16px',
+                            width: '30%',
+                            maxWidth: '12px',
                             height: `${downloadHeight}px`,
-                            background: 'linear-gradient(to top, rgba(119, 141, 122, 0.5), #778D7A)',
-                            borderRadius: '4px 4px 0 0',
+                            background: 'linear-gradient(to top, rgba(144, 190, 109, 0.5), #90BE6D)',
+                            borderRadius: '3px 3px 0 0',
                             transition: 'height 0.4s ease',
-                            boxShadow: day.downloads > 0 ? '0 0 8px rgba(119, 141, 122, 0.25)' : 'none'
+                            boxShadow: day.downloads > 0 ? '0 0 8px rgba(144, 190, 109, 0.25)' : 'none'
                           }}
                         />
                       </div>
@@ -1242,7 +1338,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                       }}
                       title="Real App Version Installed on User Device"
                     >
-                      v{user.appVersion || '11.5.6'}
+                      v{user.appVersion || '11.6.0'}
                     </span>
                   </div>
 
@@ -1378,17 +1474,9 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {(() => {
-                const genuineEvents = (analytics.recentEvents || []).filter(ev => {
-                  if (!ev) return false;
-                  const p = (ev.path || '').toLowerCase();
-                  const d = (ev.device || '').toLowerCase();
-                  // Strictly filter out any admin routes and admin device events
-                  if (p.startsWith('/admin') || p.includes('admin')) return false;
-                  if (d.includes('windows')) return false;
-                  return true;
-                });
+                const deduplicatedEvents = synchronizedAnalytics.genuineEvents || [];
 
-                if (genuineEvents.length === 0) {
+                if (deduplicatedEvents.length === 0) {
                   return (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(212, 196, 168, 0.55)' }}>
                       <Activity size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
@@ -1400,7 +1488,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                   );
                 }
 
-                return genuineEvents.map(event => {
+                return deduplicatedEvents.map(event => {
                   const isDownload = event.type === 'download';
                   const timeAgo = formatTimeAgo(event.time);
                   const formattedDateTime = formatEventDateTime(event.time);
@@ -1440,7 +1528,7 @@ export default function AdminDashboard({ onLogout, onBackToSite }) {
                         </div>
                         <div>
                           <div style={{ fontWeight: 700, color: '#F4F1DE', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span>{isDownload ? `APK Download (${event.version || 'v11.5.6'})` : `Website Visit (${event.path || '/'})`}</span>
+                            <span>{isDownload ? `APK Download (${event.version || 'v11.6.0'})` : `Website Visit (${event.path || '/'})`}</span>
                             <span
                               style={{
                                 fontSize: '0.68rem',

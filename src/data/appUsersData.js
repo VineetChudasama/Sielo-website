@@ -140,7 +140,7 @@ export async function fetchLiveAppUsers() {
                 streamCount: streamCount,
                 likedCount: pf.likedCount?.integerValue ? Number(pf.likedCount.integerValue) : (docFields.likedCount?.integerValue ? Number(docFields.likedCount.integerValue) : 0),
                 status: 'Active Now',
-                appVersion: pf.appVersion?.stringValue || docFields.appVersion?.stringValue || '11.5.6',
+                appVersion: pf.appVersion?.stringValue || docFields.appVersion?.stringValue || '11.6.0',
                 device: pf.deviceModel?.stringValue || docFields.deviceModel?.stringValue || 'Android'
               };
             } catch {}
@@ -157,7 +157,7 @@ export async function fetchLiveAppUsers() {
               streamCount: 0,
               likedCount: 0,
               status: 'Active Now',
-              appVersion: '11.5.6',
+              appVersion: '11.6.0',
               device: 'Android'
             };
           })

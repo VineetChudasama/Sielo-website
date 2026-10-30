@@ -23,6 +23,7 @@ export function alignDailyHistory(existing = []) {
     targetDays.push({
       date: dateStr,
       label: dayLabel,
+      pageViews: prev ? (Math.max(0, Number(prev.pageViews || prev.visitors)) || 0) : 0,
       visitors: prev ? (Math.max(0, Number(prev.visitors)) || 0) : 0,
       downloads: prev ? (Math.max(0, Number(prev.downloads)) || 0) : 0
     });
@@ -30,12 +31,47 @@ export function alignDailyHistory(existing = []) {
   return targetDays;
 }
 
-export function reconcileDailyHistory(history = [], totalVisitors = 0, totalDownloads = 0) {
+export function reconcileDailyHistory(history = [], totalVisitors = 0, totalDownloads = 0, recentEvents = []) {
   const aligned = alignDailyHistory(history);
 
   aligned.forEach(d => {
+    d.pageViews = Math.max(0, Number(d.pageViews || d.visitors) || 0);
     d.visitors = Math.max(0, Number(d.visitors) || 0);
     d.downloads = Math.max(0, Number(d.downloads) || 0);
+  });
+
+  // Reconcile directly against recent genuine telemetry events
+  if (Array.isArray(recentEvents) && recentEvents.length > 0) {
+    const eventsByDate = {};
+    recentEvents.forEach(ev => {
+      if (!ev || !ev.time) return;
+      const dateStr = new Date(ev.time).toISOString().split('T')[0];
+      if (!eventsByDate[dateStr]) {
+        eventsByDate[dateStr] = { visits: 0, devices: new Set(), downloads: 0 };
+      }
+      if (ev.type === 'visit') {
+        eventsByDate[dateStr].visits++;
+        eventsByDate[dateStr].devices.add(ev.device || 'user');
+      } else if (ev.type === 'download') {
+        eventsByDate[dateStr].downloads++;
+      }
+    });
+
+    aligned.forEach(d => {
+      const dayData = eventsByDate[d.date];
+      if (dayData) {
+        d.pageViews = Math.max(d.pageViews, dayData.visits);
+        d.visitors = Math.max(d.visitors, dayData.devices.size);
+        d.downloads = Math.max(d.downloads, dayData.downloads);
+      }
+    });
+  }
+
+  // Ensure pageViews >= visitors
+  aligned.forEach(d => {
+    if (d.pageViews < d.visitors) {
+      d.pageViews = d.visitors;
+    }
   });
 
   const tVisitors = Math.max(0, Number(totalVisitors) || 0);
@@ -44,7 +80,7 @@ export function reconcileDailyHistory(history = [], totalVisitors = 0, totalDown
   let visitorSum = aligned.reduce((sum, d) => sum + d.visitors, 0);
   let downloadSum = aligned.reduce((sum, d) => sum + d.downloads, 0);
 
-  if (visitorSum > tVisitors) {
+  if (visitorSum > tVisitors && tVisitors > 0) {
     let excess = visitorSum - tVisitors;
     for (let i = 0; i < aligned.length && excess > 0; i++) {
       if (aligned[i].visitors > 0) {
@@ -55,7 +91,7 @@ export function reconcileDailyHistory(history = [], totalVisitors = 0, totalDown
     }
   }
 
-  if (downloadSum > tDownloads) {
+  if (downloadSum > tDownloads && tDownloads > 0) {
     let excess = downloadSum - tDownloads;
     for (let i = 0; i < aligned.length && excess > 0; i++) {
       if (aligned[i].downloads > 0) {
@@ -99,14 +135,29 @@ function readFromTmp() {
     }
   } catch (_) {}
 
-  // Filter out any admin visits from memory (admin uses Windows)
+  // Filter out any admin visits from memory (admin uses Windows Chrome from Google)
   if (Array.isArray(memoryAnalytics.recentEvents)) {
     memoryAnalytics.recentEvents = memoryAnalytics.recentEvents.filter(e => {
       if (!e) return false;
       const p = (e.path || '').toLowerCase();
       const d = (e.device || '').toLowerCase();
-      return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
+      const r = (e.referrer || '').toLowerCase();
+      return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows') && !r.includes('google');
     });
+
+    // Deduplicate memory events occurring within 5 seconds
+    const deduped = [];
+    for (const ev of memoryAnalytics.recentEvents) {
+      const isDup = deduped.some(prev => {
+        if (prev.type !== ev.type) return false;
+        const sameTarget = (prev.path || prev.fileName || '') === (ev.path || ev.fileName || '');
+        const sameDev = (prev.device || '') === (ev.device || '');
+        const timeDiff = Math.abs((Number(prev.time) || 0) - (Number(ev.time) || 0));
+        return sameTarget && sameDev && timeDiff < 5000;
+      });
+      if (!isDup) deduped.push(ev);
+    }
+    memoryAnalytics.recentEvents = deduped;
   }
 
   // Admin visits must never pollute Windows OS metrics or Google referrer metrics
@@ -165,7 +216,8 @@ export default async function handler(req, res) {
           if (!e) return false;
           const p = (e.path || '').toLowerCase();
           const d = (e.device || '').toLowerCase();
-          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows');
+          const r = (e.referrer || '').toLowerCase();
+          return !p.startsWith('/admin') && !p.includes('admin') && !d.includes('windows') && !r.includes('google');
         });
 
         const removed = Math.max(1, initialLen - memoryAnalytics.recentEvents.length);
@@ -207,6 +259,11 @@ export default async function handler(req, res) {
         }
 
         memoryAnalytics.totalPageViews = (memoryAnalytics.totalPageViews || 0) + 1;
+        memoryAnalytics.dailyHistory = alignDailyHistory(memoryAnalytics.dailyHistory);
+        const todayPv = memoryAnalytics.dailyHistory.find(d => d.date === todayStr);
+        if (todayPv) {
+          todayPv.pageViews = (todayPv.pageViews || 0) + 1;
+        }
         if (event.isNewSession) {
           memoryAnalytics.totalVisitors = (memoryAnalytics.totalVisitors || 0) + 1;
           const dev = (event.device || 'android').toLowerCase();
@@ -266,7 +323,8 @@ export default async function handler(req, res) {
       memoryAnalytics.dailyHistory = reconcileDailyHistory(
         memoryAnalytics.dailyHistory,
         memoryAnalytics.totalVisitors,
-        memoryAnalytics.totalDownloads
+        memoryAnalytics.totalDownloads,
+        memoryAnalytics.recentEvents
       );
 
       saveToTmp();

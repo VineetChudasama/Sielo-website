@@ -39,8 +39,8 @@ function AndroidIcon({ size = 28, color = '#0D1B2A' }) {
  * - Full reduced-motion support
  */
 export default function DownloadButton({
-  href = '/Sielo-11.5.6.apk',
-  download = 'Sielo-11.5.6.apk',
+  href = '/Sielo-11.6.0.apk',
+  download = 'Sielo-11.6.0.apk',
   variant = 'download-section',
   label = 'Download Sielo',
   subtitle = 'APK for Android',
@@ -163,7 +163,7 @@ export default function DownloadButton({
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
-      trackApkDownload('v11.5.6', download);
+      trackApkDownload('v11.6.0', download);
       // Revoke after a short delay to allow the browser to pick up the download
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
 
