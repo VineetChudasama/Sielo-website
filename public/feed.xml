@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Sielo — Official Releases &amp; Updates</title>
+    <link>https://sielo.site/</link>
+    <description>Official release announcements and features for Sielo, the tactile, lossless Android music player.</description>
+    <language>en-us</language>
+    <lastBuildDate>Thu, 05 Nov 2026 12:00:00 +0000</lastBuildDate>
+    <atom:link href="https://sielo.site/feed.xml" rel="self" type="application/rss+xml" />
+
+    <item>
+      <title>Sielo v11.6.0 Released — Orbit Collaborative Listening &amp; Infinite Playlist Imports</title>
+      <link>https://sielo.site/</link>
+      <guid isPermaLink="false">sielo-release-11.6.0</guid>
+      <pubDate>Thu, 05 Nov 2026 10:00:00 +0000</pubDate>
+      <description><![CDATA[
+        Sielo 11.6.0 is now live with Orbit collaborative rooms, seamless infinite multi-page Spotify playlist imports (100, 320+ tracks), YouTube/YT Music playlist imports, stutter-free drag-and-drop reordering, vibe-aware dynamic queue, and harmonic animated progress bars.
+      ]]></description>
+    </item>
+
+    <item>
+      <title>Sielo v11.5.6 Released — Lossless 320k Audio &amp; Synced Lyrics</title>
+      <link>https://sielo.site/</link>
+      <guid isPermaLink="false">sielo-release-11.5.6</guid>
+      <pubDate>Thu, 24 Oct 2026 12:00:00 +0000</pubDate>
+      <description><![CDATA[
+        Sielo 11.5.6 brings tactile vinyl controls, millisecond-accurate LRCLIB synced lyrics, Vibe Radar discovery, and dual-stream 320kbps CD-quality audio playback.
+      ]]></description>
+    </item>
+  </channel>
+</rss>
