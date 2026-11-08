@@ -23,14 +23,12 @@ export default function SpotifyCallback({ code, error, onBack }) {
       setForwarded(true);
     }
 
-    // 2. Automatically navigate to desktop loopback server after 600ms
+    // Try to auto-close the tab after sending the code
     const timer = setTimeout(() => {
       try {
-        window.location.href = desktopLoopbackUrl;
-      } catch (err) {
-        setForwardError(err?.message || 'Auto-redirect blocked');
-      }
-    }, 600);
+        window.close();
+      } catch (_) {}
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, [code]);
