@@ -12,6 +12,7 @@ import Footer from './components/Footer';
 import SieloGlideReel from './components/SieloGlideReel';
 import DeepLinkFallback from './components/DeepLinkFallback';
 import AdminPage from './components/admin/AdminPage';
+import SpotifyCallback from './components/SpotifyCallback';
 import { trackPageView } from './utils/analyticsTracker';
 
 function App() {
@@ -63,7 +64,14 @@ function App() {
         };
       }
 
-      // 1. /song/:songId or /track/:songId or query ?song= or ?track=
+      // 0a. Spotify OAuth Callback Route: /callback
+      if (pathname === '/callback' || pathname.startsWith('/callback')) {
+        return {
+          type: 'spotify-callback',
+          code: searchParams.get('code'),
+          error: searchParams.get('error')
+        };
+      }
       const songMatch = pathname.match(/^\/(?:song|track)\/([^/?#]+)/i);
       if (songMatch) {
         return {
@@ -151,6 +159,18 @@ function App() {
   };
 
   if (routeInfo) {
+    if (routeInfo.type === 'spotify-callback') {
+      return (
+        <ErrorBoundary>
+          <SpotifyCallback
+            code={routeInfo.code}
+            error={routeInfo.error}
+            onBack={handleBackToHome}
+          />
+        </ErrorBoundary>
+      );
+    }
+
     if (routeInfo.type === 'admin') {
       return (
         <ErrorBoundary>
