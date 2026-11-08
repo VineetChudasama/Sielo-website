@@ -6,32 +6,30 @@ export default function SpotifyCallback({ code, error, onBack }) {
   const [forwarded, setForwarded] = useState(false);
   const [forwardError, setForwardError] = useState(null);
 
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (!code) return;
 
     const desktopLoopbackUrl = `http://127.0.0.1:8888/callback${window.location.search}`;
 
-    // 1. Silent fetch to local loopback server
+    // Silent fetch to local desktop loopback server
     try {
       fetch(desktopLoopbackUrl, { mode: 'no-cors' })
         .then(() => setForwarded(true))
-        .catch(() => {
-          // If fetch fails (e.g. browser blocks loopback fetch), fallback to window redirect
-          setForwarded(true);
-        });
+        .catch(() => setForwarded(true));
     } catch {
       setForwarded(true);
     }
-
-    // Try to auto-close the tab after sending the code
-    const timer = setTimeout(() => {
-      try {
-        window.close();
-      } catch (_) {}
-    }, 1200);
-
-    return () => clearTimeout(timer);
   }, [code]);
+
+  const handleCopyLink = () => {
+    try {
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (_) {}
+  };
 
   const handleManualDesktopReturn = () => {
     window.location.href = `http://127.0.0.1:8888/callback${window.location.search}`;
@@ -137,25 +135,25 @@ export default function SpotifyCallback({ code, error, onBack }) {
             </button>
 
             <button
-              onClick={handleMobileAppReturn}
+              onClick={handleCopyLink}
               style={{
                 width: '100%',
                 padding: '12px 20px',
                 borderRadius: '12px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                color: '#F4F1DE',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                fontWeight: 500,
+                background: copied ? 'rgba(30, 215, 96, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                color: copied ? '#1ED760' : '#F4F1DE',
+                border: copied ? '1px solid #1ED760' : '1px solid rgba(255, 255, 255, 0.15)',
+                fontWeight: 600,
                 fontSize: '14px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px'
+                gap: '8px',
+                transition: 'all 0.2s ease'
               }}
             >
-              <span>Open in Sielo Mobile</span>
-              <ExternalLink size={15} />
+              <span>{copied ? 'Copied to Clipboard!' : 'Copy Authorization Link'}</span>
             </button>
           </div>
         )}
